@@ -1,0 +1,322 @@
+// backend/controllers/authController.js
+const crypto = require('crypto');
+const User = require('../models/User');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
+const jwt = require('jsonwebtoken');
+const config = require('../config/config');
+
+// Generate JWT token
+const generateToken = (id) => {
+    return jwt.sign({ id }, config.JWT_SECRET, {
+        expiresIn: config.JWT_EXPIRE
+    });
+};
+
+
+// @desc    Register a new admin user (superadmin only)
+// @route   POST /api/auth/admin/signup
+// @access  Private (superadmin)
+exports.adminSignup = async (req, res, next) => {
+    try {
+        const { firstname, lastname, email, password, country, phone, dateofbirth } = req.body;
+
+        // Ensure role is set to admin
+        const role = 'admin';
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'User with this email already exists'
+            });
+        }
+
+        // Create new admin user
+        const user = await User.create({
+            firstname,
+            lastname,
+            email,
+            password,
+            country: {
+                name: country[0],
+                state: country[1] || ''
+            },
+            phone,
+            dateofbirth: new Date(dateofbirth),
+            role
+        });
+
+        // Generate verification token
+        const verificationToken = user.generateEmailVerificationToken();
+        await user.save();
+
+        // Send verification email
+        await sendVerificationEmail(user, verificationToken);
+
+        res.status(201).json({
+            success: true,
+            message: 'Admin registration successful! Please check your email to verify your account.'
+        });
+    } catch (error) {
+        console.error('Admin signup error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during admin registration.'
+        });
+    }
+};
+
+// @desc    Register a new user
+// @route   POST /api/auth/signup
+// @access  Public
+exports.signup = async (req, res, next) => {
+    try {
+        const { firstname, lastname, email, password, country, phone, dateofbirth } = req.body;
+
+        console.log(req.body);
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'User with this email already exists'
+            });
+        }
+
+        // Create new user (with default role as 'client')
+        const user = await User.create({
+            firstname,
+            lastname,
+            email,
+            password,
+            country: {
+                name: country[0],
+                state: country[1] || ''
+            },
+            phone,
+            dateofbirth: new Date(dateofbirth),
+            role: 'client' // Set default role explicitly
+        });
+
+        // Generate verification token
+        const verificationToken = user.generateEmailVerificationToken();
+        await user.save();
+
+        // Send verification email
+        await sendVerificationEmail(user, verificationToken);
+
+        res.status(201).json({
+            success: true,
+            message: 'Registration successful! Please check your email to verify your account.'
+        });
+    } catch (error) {
+        console.error('Signup error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during registration.'
+        });
+    }
+};
+
+// @desc    Verify email
+// @route   GET /api/auth/verify-email/:token
+// @access  Public
+exports.verifyEmail = async (req, res, next) => {
+    try {
+        // Get hashed token
+        const hashedToken = crypto
+            .createHash('sha256')
+            .update(req.params.token)
+            .digest('hex');
+
+        // Find user with matching token and not expired
+        const user = await User.findOne({
+            emailVerificationToken: hashedToken,
+            emailVerificationExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid or expired verification token'
+            });
+        }
+
+        // Activate account
+        user.isEmailVerified = true;
+        user.emailVerificationToken = undefined;
+        user.emailVerificationExpires = undefined;
+        await user.save();
+
+        // Redirect to login page with success message
+        res.redirect(`${config.CLIENT_URL}/?verified=true`);
+    } catch (error) {
+        console.error('Email verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during email verification.'
+        });
+    }
+};
+
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
+exports.login = async (req, res, next) => {
+    try {
+        const { email, password } = req.body;
+
+        // Validate email & password
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide email and password'
+            });
+        }
+
+        // Check for user
+        const user = await User.findOne({ email }).select('+password');
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+
+        // Check if email is verified
+        if (!user.isEmailVerified) {
+            return res.status(401).json({
+                success: false,
+                message: 'Please verify your email before logging in'
+            });
+        }
+
+        // Check if password matches
+        const isMatch = await user.isPasswordCorrect(password);
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+
+        // Create token
+        const token = generateToken(user._id);
+
+        res.status(200).json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                firstname: user.firstname,
+                lastname: user.lastname,
+                email: user.email,
+                role: user.role,
+                isEmailVerified: user.isEmailVerified
+            }
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during login.'
+        });
+    }
+};
+
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+
+        // Find user by email
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User with this email does not exist'
+            });
+        }
+
+        // Generate reset token
+        const resetToken = user.generatePasswordResetToken();
+        await user.save({ validateBeforeSave: false });
+
+        // Create reset URL
+        const resetUrl = `${config.CLIENT_URL}/reset-password/${resetToken}`;
+
+        try {
+            // Send email with reset link
+            await sendPasswordResetEmail(user, resetToken);
+
+            res.status(200).json({
+                success: true,
+                message: 'Password reset email sent'
+            });
+        } catch (error) {
+            // If email fails, remove reset token from user
+            user.passwordResetToken = undefined;
+            user.passwordResetExpires = undefined;
+            await user.save({ validateBeforeSave: false });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Email could not be sent'
+            });
+        }
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred. Please try again later.'
+        });
+    }
+};
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password
+// @access  Public
+exports.resetPassword = async (req, res, next) => {
+    try {
+        // Get hashed token
+        const hashedToken = crypto
+            .createHash('sha256')
+            .update(req.body.token)
+            .digest('hex');
+
+        // Find user with matching token and not expired
+        const user = await User.findOne({
+            passwordResetToken: hashedToken,
+            passwordResetExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid or expired reset token'
+            });
+        }
+
+        // Set new password
+        user.password = req.body.password;
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Password reset successful'
+        });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during password reset'
+        });
+    }
+};
