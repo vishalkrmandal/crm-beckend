@@ -8,7 +8,7 @@ const config = require('./config/config');
 const authRoutes = require('./routes/authRoutes');
 const leverageRoutes = require('./routes/leverageRoutes');
 const groupRoutes = require('./routes/groupRoutes');
-
+const paymentMethodRoutes = require('./routes/paymentMethodRoutes');
 
 
 // Connect to MongoDB
@@ -32,6 +32,7 @@ if (config.NODE_ENV === 'development') {
 app.use('/api/auth', authRoutes);
 app.use('/api/leverages', leverageRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/payment-methods', paymentMethodRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
