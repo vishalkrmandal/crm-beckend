@@ -7,33 +7,24 @@ const PaymentMethodSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    name: {
+    accountHolderName: {
         type: String,
-        required: [true, 'Please add a name for the payment method']
     },
     type: {
         type: String,
         required: [true, 'Please specify the payment method type'],
         enum: ['Bank Account', 'Crypto Wallet', 'Online Banking', 'Other']
     },
-    accounts: {
+    accountNumber: {
         type: String,
-        required: [true, 'Please provide account details']
-    },
-    active: {
-        type: Boolean,
-        default: false
     },
     bankName: {
         type: String
     },
-    accountNumber: {
+    ifsc_swift: {
         type: String
     },
-    ifsc: {
-        type: String
-    },
-    bank: {
+    walletName: {
         type: String
     },
     walletAddress: {
@@ -47,9 +38,30 @@ const PaymentMethodSchema = new mongoose.Schema({
     },
     description: {
         type: String
+    },
+    active: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
+});
+
+// ✅ **Pre-save Middleware for Conditional Validation**
+PaymentMethodSchema.pre("save", function (next) {
+    if (this.type === "Bank Account") {
+        if (!this.accountHolderName || !this.accountNumber || !this.bankName || !this.ifsc_swift) {
+            return next(new Error("All bank account fields (accountHolderName, accountNumber, bankName, ifsc) are required"));
+        }
+    }
+
+    if (this.type === "Crypto Wallet") {
+        if (!this.walletName || !this.walletAddress) {
+            return next(new Error("Both walletName and walletAddress are required for Crypto Wallet"));
+        }
+    }
+
+    next();
 });
 
 module.exports = mongoose.model('PaymentMethod', PaymentMethodSchema);

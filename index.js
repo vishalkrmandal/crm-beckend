@@ -33,6 +33,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/leverages', leverageRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
+app.use('/uploads', express.static('uploads'));
 
 // Error handler
 app.use((err, req, res, next) => {
