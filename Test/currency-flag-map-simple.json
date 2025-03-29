@@ -1,0 +1,799 @@
+{
+  "currencies": {
+    "USD": {
+      "rate": 1,
+      "country": "United States",
+      "flag": "https://flagcdn.com/us.svg"
+    },
+    "AED": {
+      "rate": 3.67,
+      "country": "United Arab Emirates",
+      "flag": "https://flagcdn.com/ae.svg"
+    },
+    "AFN": {
+      "rate": 71.14,
+      "country": "Afghanistan",
+      "flag": "https://upload.wikimedia.org/wikipedia/commons/5/5c/Flag_of_the_Taliban.svg"
+    },
+    "ALL": {
+      "rate": 91.7,
+      "country": "Albania",
+      "flag": "https://flagcdn.com/al.svg"
+    },
+    "AMD": {
+      "rate": 391.73,
+      "country": "Armenia",
+      "flag": "https://flagcdn.com/am.svg"
+    },
+    "ANG": {
+      "rate": 1.79,
+      "country": "Sint Maarten",
+      "flag": "https://flagcdn.com/sx.svg"
+    },
+    "AOA": {
+      "rate": 919.7,
+      "country": "Angola",
+      "flag": "https://flagcdn.com/ao.svg"
+    },
+    "ARS": {
+      "rate": 1073.38,
+      "country": "Argentina",
+      "flag": "https://flagcdn.com/ar.svg"
+    },
+    "AUD": {
+      "rate": 1.59,
+      "country": "Australia",
+      "flag": "https://flagcdn.com/au.svg"
+    },
+    "AWG": {
+      "rate": 1.79,
+      "country": "Aruba",
+      "flag": "https://flagcdn.com/aw.svg"
+    },
+    "AZN": {
+      "rate": 1.7,
+      "country": "Azerbaijan",
+      "flag": "https://flagcdn.com/az.svg"
+    },
+    "BAM": {
+      "rate": 1.81,
+      "country": "Bosnia and Herzegovina",
+      "flag": "https://flagcdn.com/ba.svg"
+    },
+    "BBD": {
+      "rate": 2,
+      "country": "Barbados",
+      "flag": "https://flagcdn.com/bb.svg"
+    },
+    "BDT": {
+      "rate": 121.51,
+      "country": "Bangladesh",
+      "flag": "https://flagcdn.com/bd.svg"
+    },
+    "BGN": {
+      "rate": 1.81,
+      "country": "Bulgaria",
+      "flag": "https://flagcdn.com/bg.svg"
+    },
+    "BHD": {
+      "rate": 0.376,
+      "country": "Bahrain",
+      "flag": "https://flagcdn.com/bh.svg"
+    },
+    "BIF": {
+      "rate": 2965.76,
+      "country": "Burundi",
+      "flag": "https://flagcdn.com/bi.svg"
+    },
+    "BMD": {
+      "rate": 1,
+      "country": "Bermuda",
+      "flag": "https://flagcdn.com/bm.svg"
+    },
+    "BND": {
+      "rate": 1.34,
+      "country": "Brunei",
+      "flag": "https://flagcdn.com/bn.svg"
+    },
+    "BOB": {
+      "rate": 6.93,
+      "country": "Bolivia",
+      "flag": "https://flagcdn.com/bo.svg"
+    },
+    "BRL": {
+      "rate": 5.74,
+      "country": "Brazil",
+      "flag": "https://flagcdn.com/br.svg"
+    },
+    "BSD": {
+      "rate": 1,
+      "country": "Bahamas",
+      "flag": "https://flagcdn.com/bs.svg"
+    },
+    "BTN": {
+      "rate": 85.62,
+      "country": "Bhutan",
+      "flag": "https://flagcdn.com/bt.svg"
+    },
+    "BWP": {
+      "rate": 13.68,
+      "country": "Botswana",
+      "flag": "https://flagcdn.com/bw.svg"
+    },
+    "BYN": {
+      "rate": 3.25,
+      "country": "Belarus",
+      "flag": "https://flagcdn.com/by.svg"
+    },
+    "BZD": {
+      "rate": 2,
+      "country": "Belize",
+      "flag": "https://flagcdn.com/bz.svg"
+    },
+    "CAD": {
+      "rate": 1.43,
+      "country": "Canada",
+      "flag": "https://flagcdn.com/ca.svg"
+    },
+    "CDF": {
+      "rate": 2859.17,
+      "country": "DR Congo",
+      "flag": "https://flagcdn.com/cd.svg"
+    },
+    "CHF": {
+      "rate": 0.881,
+      "country": "Switzerland",
+      "flag": "https://flagcdn.com/ch.svg"
+    },
+    "CLP": {
+      "rate": 932.58,
+      "country": "Chile",
+      "flag": "https://flagcdn.com/cl.svg"
+    },
+    "CNY": {
+      "rate": 7.27,
+      "country": "China",
+      "flag": "https://flagcdn.com/cn.svg"
+    },
+    "COP": {
+      "rate": 4112.1,
+      "country": "Colombia",
+      "flag": "https://flagcdn.com/co.svg"
+    },
+    "CRC": {
+      "rate": 499.01,
+      "country": "Costa Rica",
+      "flag": "https://flagcdn.com/cr.svg"
+    },
+    "CUP": {
+      "rate": 24,
+      "country": "Cuba",
+      "flag": "https://flagcdn.com/cu.svg"
+    },
+    "CVE": {
+      "rate": 101.95,
+      "country": "Cape Verde",
+      "flag": "https://flagcdn.com/cv.svg"
+    },
+    "CZK": {
+      "rate": 23.09,
+      "country": "Czechia",
+      "flag": "https://flagcdn.com/cz.svg"
+    },
+    "DJF": {
+      "rate": 177.72,
+      "country": "Djibouti",
+      "flag": "https://flagcdn.com/dj.svg"
+    },
+    "DKK": {
+      "rate": 6.9,
+      "country": "Faroe Islands",
+      "flag": "https://flagcdn.com/fo.svg"
+    },
+    "DOP": {
+      "rate": 63.21,
+      "country": "Dominican Republic",
+      "flag": "https://flagcdn.com/do.svg"
+    },
+    "DZD": {
+      "rate": 133.91,
+      "country": "Algeria",
+      "flag": "https://flagcdn.com/dz.svg"
+    },
+    "EGP": {
+      "rate": 50.57,
+      "country": "Egypt",
+      "flag": "https://flagcdn.com/eg.svg"
+    },
+    "ERN": {
+      "rate": 15,
+      "country": "Eritrea",
+      "flag": "https://flagcdn.com/er.svg"
+    },
+    "ETB": {
+      "rate": 129.93,
+      "country": "Ethiopia",
+      "flag": "https://flagcdn.com/et.svg"
+    },
+    "EUR": {
+      "rate": 0.925,
+      "country": "European Union",
+      "flag": "https://flagcdn.com/eu.svg"
+    },
+    "FJD": {
+      "rate": 2.3,
+      "country": "Fiji",
+      "flag": "https://flagcdn.com/fj.svg"
+    },
+    "FKP": {
+      "rate": 0.773,
+      "country": "Falkland Islands",
+      "flag": "https://flagcdn.com/fk.svg"
+    },
+    "FOK": {
+      "rate": 6.9,
+      "country": "Faroe Islands",
+      "flag": "https://flagcdn.com/fo.svg"
+    },
+    "GBP": {
+      "rate": 0.773,
+      "country": "United Kingdom",
+      "flag": "https://flagcdn.com/gb.svg"
+    },
+    "GEL": {
+      "rate": 2.77,
+      "country": "Georgia",
+      "flag": "https://flagcdn.com/ge.svg"
+    },
+    "GGP": {
+      "rate": 0.773,
+      "country": "Guernsey",
+      "flag": "https://flagcdn.com/gg.svg"
+    },
+    "GHS": {
+      "rate": 15.55,
+      "country": "Ghana",
+      "flag": "https://flagcdn.com/gh.svg"
+    },
+    "GIP": {
+      "rate": 0.773,
+      "country": "Gibraltar",
+      "flag": "https://flagcdn.com/gi.svg"
+    },
+    "GMD": {
+      "rate": 72.62,
+      "country": "Gambia",
+      "flag": "https://flagcdn.com/gm.svg"
+    },
+    "GNF": {
+      "rate": 8631.88,
+      "country": "Guinea",
+      "flag": "https://flagcdn.com/gn.svg"
+    },
+    "GTQ": {
+      "rate": 7.71,
+      "country": "Guatemala",
+      "flag": "https://flagcdn.com/gt.svg"
+    },
+    "GYD": {
+      "rate": 209.59,
+      "country": "Guyana",
+      "flag": "https://flagcdn.com/gy.svg"
+    },
+    "HKD": {
+      "rate": 7.78,
+      "country": "Hong Kong",
+      "flag": "https://flagcdn.com/hk.svg"
+    },
+    "HNL": {
+      "rate": 25.59,
+      "country": "Honduras",
+      "flag": "https://flagcdn.com/hn.svg"
+    },
+    "HTG": {
+      "rate": 131,
+      "country": "Haiti",
+      "flag": "https://flagcdn.com/ht.svg"
+    },
+    "HUF": {
+      "rate": 372.38,
+      "country": "Hungary",
+      "flag": "https://flagcdn.com/hu.svg"
+    },
+    "IDR": {
+      "rate": 16601.32,
+      "country": "Indonesia",
+      "flag": "https://flagcdn.com/id.svg"
+    },
+    "ILS": {
+      "rate": 3.69,
+      "country": "Palestine",
+      "flag": "https://flagcdn.com/ps.svg"
+    },
+    "IMP": {
+      "rate": 0.773,
+      "country": "Isle of Man",
+      "flag": "https://flagcdn.com/im.svg"
+    },
+    "INR": {
+      "rate": 85.62,
+      "country": "India",
+      "flag": "https://flagcdn.com/in.svg"
+    },
+    "IQD": {
+      "rate": 1311.59,
+      "country": "Iraq",
+      "flag": "https://flagcdn.com/iq.svg"
+    },
+    "IRR": {
+      "rate": 41997.29,
+      "country": "Iran",
+      "flag": "https://flagcdn.com/ir.svg"
+    },
+    "ISK": {
+      "rate": 132.04,
+      "country": "Iceland",
+      "flag": "https://flagcdn.com/is.svg"
+    },
+    "JEP": {
+      "rate": 0.773,
+      "country": "Jersey",
+      "flag": "https://flagcdn.com/je.svg"
+    },
+    "JMD": {
+      "rate": 156.91,
+      "country": "Jamaica",
+      "flag": "https://flagcdn.com/jm.svg"
+    },
+    "JOD": {
+      "rate": 0.709,
+      "country": "Palestine",
+      "flag": "https://flagcdn.com/ps.svg"
+    },
+    "JPY": {
+      "rate": 150.11,
+      "country": "Japan",
+      "flag": "https://flagcdn.com/jp.svg"
+    },
+    "KES": {
+      "rate": 129.31,
+      "country": "Kenya",
+      "flag": "https://flagcdn.com/ke.svg"
+    },
+    "KGS": {
+      "rate": 87.16,
+      "country": "Kyrgyzstan",
+      "flag": "https://flagcdn.com/kg.svg"
+    },
+    "KHR": {
+      "rate": 4005.67,
+      "country": "Cambodia",
+      "flag": "https://flagcdn.com/kh.svg"
+    },
+    "KID": {
+      "rate": 1.59,
+      "country": "Kiribati",
+      "flag": "https://flagcdn.com/ki.svg"
+    },
+    "KMF": {
+      "rate": 454.89,
+      "country": "Comoros",
+      "flag": "https://flagcdn.com/km.svg"
+    },
+    "KRW": {
+      "rate": 1468.23,
+      "country": "South Korea",
+      "flag": "https://flagcdn.com/kr.svg"
+    },
+    "KWD": {
+      "rate": 0.308,
+      "country": "Kuwait",
+      "flag": "https://flagcdn.com/kw.svg"
+    },
+    "KYD": {
+      "rate": 0.833,
+      "country": "Cayman Islands",
+      "flag": "https://flagcdn.com/ky.svg"
+    },
+    "KZT": {
+      "rate": 500.94,
+      "country": "Kazakhstan",
+      "flag": "https://flagcdn.com/kz.svg"
+    },
+    "LAK": {
+      "rate": 21852.95,
+      "country": "Laos",
+      "flag": "https://flagcdn.com/la.svg"
+    },
+    "LBP": {
+      "rate": 89500,
+      "country": "Lebanon",
+      "flag": "https://flagcdn.com/lb.svg"
+    },
+    "LKR": {
+      "rate": 296.19,
+      "country": "Sri Lanka",
+      "flag": "https://flagcdn.com/lk.svg"
+    },
+    "LRD": {
+      "rate": 199.98,
+      "country": "Liberia",
+      "flag": "https://flagcdn.com/lr.svg"
+    },
+    "LSL": {
+      "rate": 18.33,
+      "country": "Lesotho",
+      "flag": "https://flagcdn.com/ls.svg"
+    },
+    "LYD": {
+      "rate": 4.84,
+      "country": "Libya",
+      "flag": "https://flagcdn.com/ly.svg"
+    },
+    "MAD": {
+      "rate": 9.63,
+      "country": "Morocco",
+      "flag": "https://flagcdn.com/ma.svg"
+    },
+    "MDL": {
+      "rate": 18.06,
+      "country": "Moldova",
+      "flag": "https://flagcdn.com/md.svg"
+    },
+    "MGA": {
+      "rate": 4670.12,
+      "country": "Madagascar",
+      "flag": "https://flagcdn.com/mg.svg"
+    },
+    "MKD": {
+      "rate": 57.16,
+      "country": "North Macedonia",
+      "flag": "https://flagcdn.com/mk.svg"
+    },
+    "MMK": {
+      "rate": 2098.8,
+      "country": "Myanmar",
+      "flag": "https://flagcdn.com/mm.svg"
+    },
+    "MNT": {
+      "rate": 3500.14,
+      "country": "Mongolia",
+      "flag": "https://flagcdn.com/mn.svg"
+    },
+    "MOP": {
+      "rate": 8.01,
+      "country": "Macau",
+      "flag": "https://flagcdn.com/mo.svg"
+    },
+    "MRU": {
+      "rate": 39.95,
+      "country": "Western Sahara",
+      "flag": "https://flagcdn.com/eh.svg"
+    },
+    "MUR": {
+      "rate": 45.67,
+      "country": "Mauritius",
+      "flag": "https://flagcdn.com/mu.svg"
+    },
+    "MVR": {
+      "rate": 15.45,
+      "country": "Maldives",
+      "flag": "https://flagcdn.com/mv.svg"
+    },
+    "MWK": {
+      "rate": 1744.66,
+      "country": "Malawi",
+      "flag": "https://flagcdn.com/mw.svg"
+    },
+    "MXN": {
+      "rate": 20.37,
+      "country": "Mexico",
+      "flag": "https://flagcdn.com/mx.svg"
+    },
+    "MYR": {
+      "rate": 4.44,
+      "country": "Malaysia",
+      "flag": "https://flagcdn.com/my.svg"
+    },
+    "MZN": {
+      "rate": 63.92,
+      "country": "Mozambique",
+      "flag": "https://flagcdn.com/mz.svg"
+    },
+    "NAD": {
+      "rate": 18.33,
+      "country": "Namibia",
+      "flag": "https://flagcdn.com/na.svg"
+    },
+    "NGN": {
+      "rate": 1536.82,
+      "country": "Nigeria",
+      "flag": "https://flagcdn.com/ng.svg"
+    },
+    "NIO": {
+      "rate": 36.8,
+      "country": "Nicaragua",
+      "flag": "https://flagcdn.com/ni.svg"
+    },
+    "NOK": {
+      "rate": 10.48,
+      "country": "Svalbard and Jan Mayen",
+      "flag": "https://flagcdn.com/sj.svg"
+    },
+    "NPR": {
+      "rate": 136.99,
+      "country": "Nepal",
+      "flag": "https://flagcdn.com/np.svg"
+    },
+    "NZD": {
+      "rate": 1.75,
+      "country": "Pitcairn Islands",
+      "flag": "https://flagcdn.com/pn.svg"
+    },
+    "OMR": {
+      "rate": 0.384,
+      "country": "Oman",
+      "flag": "https://flagcdn.com/om.svg"
+    },
+    "PAB": {
+      "rate": 1,
+      "country": "Panama",
+      "flag": "https://flagcdn.com/pa.svg"
+    },
+    "PEN": {
+      "rate": 3.64,
+      "country": "Peru",
+      "flag": "https://flagcdn.com/pe.svg"
+    },
+    "PGK": {
+      "rate": 4.11,
+      "country": "Papua New Guinea",
+      "flag": "https://flagcdn.com/pg.svg"
+    },
+    "PHP": {
+      "rate": 57.39,
+      "country": "Philippines",
+      "flag": "https://flagcdn.com/ph.svg"
+    },
+    "PKR": {
+      "rate": 280.05,
+      "country": "Pakistan",
+      "flag": "https://flagcdn.com/pk.svg"
+    },
+    "PLN": {
+      "rate": 3.86,
+      "country": "Poland",
+      "flag": "https://flagcdn.com/pl.svg"
+    },
+    "PYG": {
+      "rate": 8057.91,
+      "country": "Paraguay",
+      "flag": "https://flagcdn.com/py.svg"
+    },
+    "QAR": {
+      "rate": 3.64,
+      "country": "Qatar",
+      "flag": "https://flagcdn.com/qa.svg"
+    },
+    "RON": {
+      "rate": 4.61,
+      "country": "Romania",
+      "flag": "https://flagcdn.com/ro.svg"
+    },
+    "RSD": {
+      "rate": 108.71,
+      "country": "Serbia",
+      "flag": "https://flagcdn.com/rs.svg"
+    },
+    "RUB": {
+      "rate": 84.48,
+      "country": "Russia",
+      "flag": "https://flagcdn.com/ru.svg"
+    },
+    "RWF": {
+      "rate": 1439.61,
+      "country": "Rwanda",
+      "flag": "https://flagcdn.com/rw.svg"
+    },
+    "SAR": {
+      "rate": 3.75,
+      "country": "Saudi Arabia",
+      "flag": "https://flagcdn.com/sa.svg"
+    },
+    "SBD": {
+      "rate": 8.2,
+      "country": "Solomon Islands",
+      "flag": "https://flagcdn.com/sb.svg"
+    },
+    "SCR": {
+      "rate": 14.37,
+      "country": "Seychelles",
+      "flag": "https://flagcdn.com/sc.svg"
+    },
+    "SDG": {
+      "rate": 510.23,
+      "country": "Sudan",
+      "flag": "https://flagcdn.com/sd.svg"
+    },
+    "SEK": {
+      "rate": 10.01,
+      "country": "Sweden",
+      "flag": "https://flagcdn.com/se.svg"
+    },
+    "SGD": {
+      "rate": 1.34,
+      "country": "Singapore",
+      "flag": "https://flagcdn.com/sg.svg"
+    },
+    "SHP": {
+      "rate": 0.773,
+      "country": "South Georgia",
+      "flag": "https://flagcdn.com/gs.svg"
+    },
+    "SLL": {
+      "rate": 22798.78,
+      "country": "Sierra Leone",
+      "flag": "https://flagcdn.com/sl.svg"
+    },
+    "SOS": {
+      "rate": 571.41,
+      "country": "Somalia",
+      "flag": "https://flagcdn.com/so.svg"
+    },
+    "SRD": {
+      "rate": 36.8,
+      "country": "Suriname",
+      "flag": "https://flagcdn.com/sr.svg"
+    },
+    "SSP": {
+      "rate": 4533.76,
+      "country": "South Sudan",
+      "flag": "https://flagcdn.com/ss.svg"
+    },
+    "STN": {
+      "rate": 22.65,
+      "country": "São Tomé and Príncipe",
+      "flag": "https://flagcdn.com/st.svg"
+    },
+    "SYP": {
+      "rate": 12926.19,
+      "country": "Syria",
+      "flag": "https://flagcdn.com/sy.svg"
+    },
+    "SZL": {
+      "rate": 18.33,
+      "country": "Eswatini",
+      "flag": "https://flagcdn.com/sz.svg"
+    },
+    "THB": {
+      "rate": 33.92,
+      "country": "Thailand",
+      "flag": "https://flagcdn.com/th.svg"
+    },
+    "TJS": {
+      "rate": 10.92,
+      "country": "Tajikistan",
+      "flag": "https://flagcdn.com/tj.svg"
+    },
+    "TMT": {
+      "rate": 3.5,
+      "country": "Turkmenistan",
+      "flag": "https://flagcdn.com/tm.svg"
+    },
+    "TND": {
+      "rate": 3.11,
+      "country": "Tunisia",
+      "flag": "https://flagcdn.com/tn.svg"
+    },
+    "TOP": {
+      "rate": 2.39,
+      "country": "Tonga",
+      "flag": "https://flagcdn.com/to.svg"
+    },
+    "TRY": {
+      "rate": 38.01,
+      "country": "Turkey",
+      "flag": "https://flagcdn.com/tr.svg"
+    },
+    "TTD": {
+      "rate": 6.75,
+      "country": "Trinidad and Tobago",
+      "flag": "https://flagcdn.com/tt.svg"
+    },
+    "TVD": {
+      "rate": 1.59,
+      "country": "Tuvalu",
+      "flag": "https://flagcdn.com/tv.svg"
+    },
+    "TWD": {
+      "rate": 33.13,
+      "country": "Taiwan",
+      "flag": "https://flagcdn.com/tw.svg"
+    },
+    "TZS": {
+      "rate": 2641.77,
+      "country": "Tanzania",
+      "flag": "https://flagcdn.com/tz.svg"
+    },
+    "UAH": {
+      "rate": 41.49,
+      "country": "Ukraine",
+      "flag": "https://flagcdn.com/ua.svg"
+    },
+    "UGX": {
+      "rate": 3664.93,
+      "country": "Uganda",
+      "flag": "https://flagcdn.com/ug.svg"
+    },
+    "UYU": {
+      "rate": 42.12,
+      "country": "Uruguay",
+      "flag": "https://flagcdn.com/uy.svg"
+    },
+    "UZS": {
+      "rate": 12930.07,
+      "country": "Uzbekistan",
+      "flag": "https://flagcdn.com/uz.svg"
+    },
+    "VES": {
+      "rate": 69.57,
+      "country": "Venezuela",
+      "flag": "https://flagcdn.com/ve.svg"
+    },
+    "VND": {
+      "rate": 25571.56,
+      "country": "Vietnam",
+      "flag": "https://flagcdn.com/vn.svg"
+    },
+    "VUV": {
+      "rate": 122.49,
+      "country": "Vanuatu",
+      "flag": "https://flagcdn.com/vu.svg"
+    },
+    "WST": {
+      "rate": 2.81,
+      "country": "Samoa",
+      "flag": "https://flagcdn.com/ws.svg"
+    },
+    "XAF": {
+      "rate": 606.52,
+      "country": "Gabon",
+      "flag": "https://flagcdn.com/ga.svg"
+    },
+    "XCD": {
+      "rate": 2.7,
+      "country": "Grenada",
+      "flag": "https://flagcdn.com/gd.svg"
+    },
+    "XOF": {
+      "rate": 606.52,
+      "country": "Ivory Coast",
+      "flag": "https://flagcdn.com/ci.svg"
+    },
+    "XPF": {
+      "rate": 110.34,
+      "country": "Wallis and Futuna",
+      "flag": "https://flagcdn.com/wf.svg"
+    },
+    "YER": {
+      "rate": 246.09,
+      "country": "Yemen",
+      "flag": "https://flagcdn.com/ye.svg"
+    },
+    "ZAR": {
+      "rate": 18.33,
+      "country": "South Africa",
+      "flag": "https://flagcdn.com/za.svg"
+    },
+    "ZMW": {
+      "rate": 28.7,
+      "country": "Zambia",
+      "flag": "https://flagcdn.com/zm.svg"
+    },
+    "ZWL": {
+      "rate": 6.75,
+      "country": "Zimbabwe",
+      "flag": "https://flagcdn.com/zw.svg"
+    }
+  }
+}
