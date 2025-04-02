@@ -6,7 +6,8 @@ const {
     createExchange,
     getAllExchanges,
     updateExchange,
-    deleteExchange
+    deleteExchange,
+    getSupportedCurrencies
 } = require('../controllers/exchangeController');
 
 router.route('/')
@@ -16,5 +17,8 @@ router.route('/')
 router.route('/:id')
     .put(protect, authorize('admin'), updateExchange)
     .delete(protect, authorize('admin'), deleteExchange);
+
+router.route('/currencies')
+    .get(protect, authorize('admin'), getSupportedCurrencies);
 
 module.exports = router;

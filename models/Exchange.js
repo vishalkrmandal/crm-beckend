@@ -1,26 +1,36 @@
-// models/Exchange.js
 const mongoose = require('mongoose');
 
-const ExchangeSchema = new mongoose.Schema({
-    fromCurrency: {
-        code: { type: String, required: true },
-        name: { type: String, required: true }
+const exchangeSchema = new mongoose.Schema({
+    baseCurrency: {
+        type: String,
+        required: true,
+        trim: true
     },
-    toCurrency: {
-        code: { type: String, required: true },
-        name: { type: String, required: true }
+    targetCurrency: {
+        type: String,
+        required: true,
+        trim: true
     },
-    exchangeRate: { type: Number, required: true },
+    rate: {
+        type: Number,
+        required: true
+    },
     type: {
         type: String,
         enum: ['deposit', 'withdrawal'],
         required: true
     },
-    isCustomRate: { type: Boolean, default: false },
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+    isCustomRate: {
+        type: Boolean,
+        default: false
+    },
+    lastUpdated: {
+        type: Date,
+        default: Date.now
     }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Exchange', ExchangeSchema);
+// Compound index to ensure uniqueness of baseCurrency, targetCurrency, and type
+exchangeSchema.index({ baseCurrency: 1, targetCurrency: 1, type: 1 }, { unique: true });
+
+module.exports = mongoose.model('Exchange', exchangeSchema);
