@@ -10,7 +10,7 @@ const leverageRoutes = require('./routes/leverageRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const paymentMethodRoutes = require('./routes/paymentMethodRoutes');
 const exchangeRoutes = require('./routes/exchangeRoutes');
-
+const accountRoutes = require('./routes/accountRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -36,6 +36,8 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 app.use('/uploads', express.static('uploads'));
 app.use('/api/exchanges', exchangeRoutes);
+//Client Routes
+app.use('/api/accounts', accountRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
