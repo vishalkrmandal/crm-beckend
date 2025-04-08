@@ -1,3 +1,4 @@
+// Backend\models\client\Account.js
 const mongoose = require('mongoose');
 
 const AccountSchema = new mongoose.Schema({

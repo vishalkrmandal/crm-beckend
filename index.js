@@ -11,6 +11,8 @@ const groupRoutes = require('./routes/groupRoutes');
 const paymentMethodRoutes = require('./routes/paymentMethodRoutes');
 const exchangeRoutes = require('./routes/exchangeRoutes');
 const accountRoutes = require('./routes/accountRoutes');
+const depositRoutes = require('./routes/depositRoutes');
+
 
 // Connect to MongoDB
 connectDB();
@@ -38,6 +40,9 @@ app.use('/uploads', express.static('uploads'));
 app.use('/api/exchanges', exchangeRoutes);
 //Client Routes
 app.use('/api/accounts', accountRoutes);
+app.use('/api/deposits', depositRoutes);
+
+
 
 // Error handler
 app.use((err, req, res, next) => {
