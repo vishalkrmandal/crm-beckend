@@ -1,7 +1,7 @@
 // Backend\controllers\client\depositController.js
 const path = require('path');
 const fs = require('fs');
-const Deposit = require('../../models/client/Deposit');
+const Deposit = require('../../Test/Unused/Deposit');
 const Account = require('../../models/client/Account');
 const PaymentMethod = require('../../models/PaymentMethod');
 const multer = require('multer');

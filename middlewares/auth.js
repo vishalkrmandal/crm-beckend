@@ -34,6 +34,7 @@ exports.protect = async (req, res, next) => {
 
         // Add user to req object
         req.user = user;
+        // console.log('User:', req.user);
         next();
     } catch (error) {
         return res.status(401).json({
