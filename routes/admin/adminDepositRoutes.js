@@ -18,8 +18,8 @@ router.use(protect);
 router.get('/', authorize('admin'), getDeposits);
 router.get('/export', authorize('admin'), exportDeposits);
 router.get('/:id', authorize('admin'), getDepositById);
-router.put('/:id/approve', authorize('admin'), approveDeposit);
-router.put('/:id/reject', authorize('admin'), rejectDeposit);
+router.post('/:id/approve', authorize('admin'), approveDeposit);
+router.post('/:id/reject', authorize('admin'), rejectDeposit);
 router.get('/:id/document', authorize('admin'), getDocument);
 
 module.exports = router;

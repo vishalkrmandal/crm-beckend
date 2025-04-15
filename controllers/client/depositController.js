@@ -1,7 +1,7 @@
 // Backend\controllers\client\depositController.js
 const path = require('path');
 const fs = require('fs');
-const Deposit = require('../../Test/Unused/Deposit');
+const Deposit = require('../../models/Deposit');
 const Account = require('../../models/client/Account');
 const PaymentMethod = require('../../models/PaymentMethod');
 const multer = require('multer');
@@ -59,10 +59,10 @@ exports.createDeposit = async (req, res, next) => {
         const { accountId, amount, paymentMethodId, paymentType, notes } = req.body;
 
         // Validate amount
-        if (amount < 100) {
+        if (amount < 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Minimum deposit amount is $100'
+                message: 'Invalid deposit amount'
             });
         }
 

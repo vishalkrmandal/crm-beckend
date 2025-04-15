@@ -12,28 +12,28 @@ const DepositSchema = new mongoose.Schema({
         ref: 'Account',
         required: true
     },
-    accountNumber: {
-        type: String,
-        required: true
-    },
     amount: {
         type: Number,
         required: true,
-        min: [100, 'Minimum deposit amount is $100']
     },
     planType: {
         type: String,
-        enum: ['Basic', 'Standard', 'Premium'],
-        required: true
     },
     paymentMethod: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'PaymentMethod',
+        required: true
+    },
+    paymentType: {
         type: String,
         required: true,
-        enum: ['Bank Transfer', 'Credit Card', 'Cryptocurrency', 'E-Wallet']
     },
     proofOfPayment: {
         type: String,
         required: true
+    },
+    accountNumber: {    //mt5account
+        type: String,
     },
     bonus: {
         type: Number,
