@@ -158,8 +158,6 @@ exports.getDeposits = async (req, res) => {
         // Execute aggregation
         const deposits = await Deposit.aggregate(pipeline);
 
-        console.log('Deposits:', deposits);
-
         return res.status(200).json({
             success: true,
             count: deposits.length,
@@ -228,7 +226,7 @@ exports.approveDeposit = async (req, res) => {
 
         // Find the account to update its balance
         const account = await Account.findById(deposit.account);
-        console.log('Account:', account);
+        console.log('Account before save:', account);
 
         if (!account) {
             return res.status(404).json({
@@ -246,8 +244,14 @@ exports.approveDeposit = async (req, res) => {
         // Update account balance - add deposit amount and bonus
         const totalAmount = deposit.amount + (bonus || 0);
         account.balance += totalAmount;
-        account.equity += totalAmount;
+        // account.equity += totalAmount;
 
+        console.log('Account after save:', account);
+        console.log('Deposit before save:', deposit);
+        console.log('Total Amount:', totalAmount);
+
+
+        // Update account details
         // Save both documents
         await Promise.all([
             deposit.save(),

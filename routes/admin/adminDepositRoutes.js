@@ -1,4 +1,4 @@
-// backend/routes/depositRoutes.js
+// Backend\routes\admin\adminDepositRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../../middlewares/auth');

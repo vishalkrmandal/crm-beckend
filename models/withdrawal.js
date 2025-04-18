@@ -41,14 +41,14 @@ const WithdrawalSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Completed', 'Rejected'],
+        enum: ['Pending', 'Approved', 'Rejected'],
         default: 'Pending'
     },
     requestedDate: {
         type: Date,
         default: Date.now
     },
-    completedDate: {
+    approvedDate: {
         type: Date
     },
     rejectedDate: {
