@@ -16,6 +16,8 @@ const adminDepositRoutes = require('./routes/admin/adminDepositRoutes');
 const withdrawalRoutes = require('./routes/client/withdrawalRoutes');
 const adminWithdrawalRoutes = require('./routes/admin/withdrawalRoutes');
 const transferRoutes = require('./routes/client/transferRoutes');
+const transactionRoutes = require('./routes/client/transactionRoutes');
+
 
 // Connect to MongoDB
 connectDB();
@@ -48,8 +50,7 @@ app.use('/api/accounts', accountRoutes);
 app.use('/api/clientdeposits', depositRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/transfers', transferRoutes);
-
-
+app.use('/api/transactions', transactionRoutes);
 
 
 // Error handler
