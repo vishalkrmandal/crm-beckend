@@ -20,6 +20,25 @@ const ProfileSchema = new mongoose.Schema({
     isEmployed: {
         type: Boolean,
     },
+    kycVerified: {
+        type: Boolean,
+        default: false
+    },
+    kycStatus: {
+        type: String,
+        enum: ['unverified', 'verified', 'rejected'],
+        default: 'unverified'
+    },
+    kycRejectReason: {
+        type: String
+    },
+    ibPartner: {
+        type: String,
+    },
+    password: {
+        type: String,
+        minlength: 6,
+    },
     idDocument: {
         type: String, // Path to uploaded file
     },
