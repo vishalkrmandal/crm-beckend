@@ -23,7 +23,9 @@ exports.getDeposits = async (req, res) => {
             startDate,
             endDate,
             sortField = 'requestedDate',
-            sortOrder = 'desc'
+            sortOrder = 'desc',
+            page = 1,
+            limit = 10
         } = req.query;
 
         console.log('Query Params:', req.query);
@@ -126,10 +128,24 @@ exports.getDeposits = async (req, res) => {
             });
         }
 
+        // First get total count for pagination
+        const countPipeline = [...pipeline];
+        countPipeline.push({ $count: "total" });
+        const countResult = await Deposit.aggregate(countPipeline);
+        const total = countResult.length > 0 ? countResult[0].total : 0;
+
         // Add sort
         const sortObj = {};
         sortObj[sortField] = sortOrder === 'asc' ? 1 : -1;
         pipeline.push({ $sort: sortObj });
+
+        // Add pagination
+        const pageNumber = parseInt(page);
+        const pageSize = parseInt(limit);
+        const skip = (pageNumber - 1) * pageSize;
+
+        pipeline.push({ $skip: skip });
+        pipeline.push({ $limit: pageSize });
 
         // Project to desired format
         pipeline.push({
@@ -139,7 +155,7 @@ exports.getDeposits = async (req, res) => {
                 user: {
                     name: { $concat: ["$userData.firstname", " ", "$userData.lastname"] },
                     email: "$userData.email",
-                    avatar: { $literal: "/placeholder.svg" }
+                    // avatar: { $literal: "/placeholder.svg" }
                 },
                 accountNumber: "$accountData.mt5Account",
                 amount: 1,
@@ -161,6 +177,8 @@ exports.getDeposits = async (req, res) => {
         return res.status(200).json({
             success: true,
             count: deposits.length,
+            total: total,
+            pages: Math.ceil(total / pageSize),
             data: deposits
         });
 
@@ -177,7 +195,7 @@ exports.getDeposits = async (req, res) => {
 exports.getDepositById = async (req, res) => {
     try {
         const deposit = await Deposit.findById(req.params.id)
-            .populate('user', 'name email avatar');
+            .populate('user', 'name email');
 
         if (!deposit) {
             return res.status(404).json({
@@ -204,11 +222,8 @@ exports.approveDeposit = async (req, res) => {
     try {
         const { bonus, remarks } = req.body;
 
-        console.log('Approve Deposit called');
-        console.log('Req Body:', req.body);
-
-        const deposit = await Deposit.findById(req.params.id);
-        console.log('Deposit:', deposit);
+        // Find the deposit
+        let deposit = await Deposit.findById(req.params.id);
 
         if (!deposit) {
             return res.status(404).json({
@@ -217,46 +232,17 @@ exports.approveDeposit = async (req, res) => {
             });
         }
 
-        if (deposit.status !== 'Pending') {
-            return res.status(400).json({
-                success: false,
-                message: 'This deposit has already been processed'
-            });
-        }
-
-        // Find the account to update its balance
-        const account = await Account.findById(deposit.account);
-        console.log('Account before save:', account);
-
-        if (!account) {
-            return res.status(404).json({
-                success: false,
-                message: 'Account not found'
-            });
-        }
-
-        // Update deposit details
+        // Update deposit status
         deposit.status = 'Approved';
-        deposit.bonus = bonus || 0;
-        deposit.remarks = remarks || 'Congratulations';
         deposit.approvedDate = Date.now();
+        deposit.bonus = bonus || 0;
+        deposit.remarks = remarks || '';
 
-        // Update account balance - add deposit amount and bonus
-        const totalAmount = deposit.amount + (bonus || 0);
-        account.balance += totalAmount;
-        // account.equity += totalAmount;
+        // Save the changes
+        await deposit.save();
 
-        console.log('Account after save:', account);
-        console.log('Deposit before save:', deposit);
-        console.log('Total Amount:', totalAmount);
-
-
-        // Update account details
-        // Save both documents
-        await Promise.all([
-            deposit.save(),
-            account.save()
-        ]);
+        // Populate user information for the response
+        await deposit.populate('user', 'firstname lastname email');
 
         return res.status(200).json({
             success: true,
@@ -276,7 +262,8 @@ exports.rejectDeposit = async (req, res) => {
     try {
         const { remarks } = req.body;
 
-        const deposit = await Deposit.findById(req.params.id);
+        // Find the deposit
+        let deposit = await Deposit.findById(req.params.id);
 
         if (!deposit) {
             return res.status(404).json({
@@ -285,18 +272,16 @@ exports.rejectDeposit = async (req, res) => {
             });
         }
 
-        if (deposit.status !== 'Pending') {
-            return res.status(400).json({
-                success: false,
-                message: 'This deposit has already been processed'
-            });
-        }
-
+        // Update deposit status
         deposit.status = 'Rejected';
-        deposit.remarks = remarks;
         deposit.rejectedDate = Date.now();
+        deposit.remarks = remarks || '';
 
+        // Save the changes
         await deposit.save();
+
+        // Populate user information for the response
+        await deposit.populate('user', 'firstname lastname email');
 
         return res.status(200).json({
             success: true,
