@@ -7,6 +7,7 @@ const path = require('path');
 const { promisify } = require('util');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const Account = require('../../models/client/Account');
 
 // @desc    Get all clients
 // @route   GET /api/clients
@@ -116,6 +117,8 @@ exports.getClientDetails = async (req, res) => {
         });
     }
 };
+
+
 
 // @desc    Update client profile
 // @route   PUT /api/clients/:id
@@ -365,6 +368,72 @@ exports.activateClient = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error activating client'
+        });
+    }
+};
+
+// Get all accounts for a specific user
+exports.getUserAccounts = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID is required'
+            });
+        }
+
+        const accounts = await Account.find({ user: userId })
+            .select('mt5Account name accountType leverage balance equity profit')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: accounts.length,
+            data: accounts
+        });
+    } catch (error) {
+        console.error('Error fetching user accounts:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch user accounts',
+            error: error.message
+        });
+    }
+};
+
+// Get account details by account ID
+exports.getAccountDetails = async (req, res) => {
+    try {
+        const { accountId } = req.params;
+
+        if (!accountId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Account ID is required'
+            });
+        }
+
+        const account = await Account.findById(accountId);
+
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: 'Account not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: account
+        });
+    } catch (error) {
+        console.error('Error fetching account details:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch account details',
+            error: error.message
         });
     }
 };

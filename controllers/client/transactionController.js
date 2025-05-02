@@ -1,6 +1,6 @@
 // Backend/controllers/transactionController.js
 const Deposit = require('../../models/Deposit');
-const Withdrawal = require('../../models/withdrawal');
+const Withdrawal = require('../../models/Withdrawal');
 const Transfer = require('../../models/client/Transfer');
 const { generateExcel, generatePDF } = require('../../utils/exportUtils');
 // const Account = require('../models/client/Account');

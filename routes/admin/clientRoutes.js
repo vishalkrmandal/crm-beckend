@@ -11,7 +11,9 @@ const {
     suspendClient,
     activateClient,
     exportToExcel,
-    exportToPdf
+    exportToPdf,
+    getUserAccounts,
+    getAccountDetails
 } = require('../../controllers/admin/clientController');
 
 // Protected routes
@@ -40,5 +42,8 @@ router.put('/:id/activate', activateClient);
 // Export data
 router.get('/export/excel', exportToExcel);
 router.get('/export/pdf', exportToPdf);
+
+// Get accounts for a specific user
+router.get('/users/:userId/accounts', protect, authorize('admin'), getUserAccounts);
 
 module.exports = router;

@@ -2,13 +2,26 @@
 const Transfer = require('../../models/client/Transfer');
 const Account = require('../../models/client/Account');
 
-// Get all transfers for a user
+// Get all transfers for a user or all transfers for admin
 exports.getTransfers = async (req, res) => {
     try {
-        const transfers = await Transfer.find({ user: req.user.id })
-            .populate('fromAccount', 'mt5Account accountType')
-            .populate('toAccount', 'mt5Account accountType')
-            .sort({ createdAt: -1 });
+        let transfers;
+
+        // Check if the user is an admin
+        if (req.user.role === 'admin') {
+            // Admin gets all transfers from all users
+            transfers = await Transfer.find({})
+                .populate('user', 'firstname lastname email')
+                .populate('fromAccount', 'mt5Account accountType')
+                .populate('toAccount', 'mt5Account accountType')
+                .sort({ createdAt: -1 });
+        } else {
+            // Regular users only get their own transfers
+            transfers = await Transfer.find({ user: req.user.id })
+                .populate('fromAccount', 'mt5Account accountType')
+                .populate('toAccount', 'mt5Account accountType')
+                .sort({ createdAt: -1 });
+        }
 
         res.status(200).json({
             success: true,
@@ -113,7 +126,7 @@ exports.createTransfer = async (req, res) => {
 // Get user accounts with balances (for transfer form)
 exports.getUserAccounts = async (req, res) => {
     try {
-        const accounts = await Account.find({
+        const accounts = await Account.findOne({
             user: req.user.id,
             status: true
         })

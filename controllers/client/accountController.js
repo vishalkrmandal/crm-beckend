@@ -32,7 +32,6 @@ exports.createAccount = async (req, res) => {
                 message: 'User not found'
             });
         }
-        console.log(req.user);
 
         // Create account name from user first and last name
         const name = `${user.firstname} ${user.lastname}`;
@@ -69,7 +68,6 @@ exports.createAccount = async (req, res) => {
             Leverage: leverage,
             Group_Name: accountType
         };
-        console.log("external api load:", externalAPIPayload);
 
         // Call external API to create account
         let externalAPIResponse;

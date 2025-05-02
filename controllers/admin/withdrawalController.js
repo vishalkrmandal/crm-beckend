@@ -1,6 +1,6 @@
 // Backend\controllers\admin\withdrawalController.js
 
-const Withdrawal = require('../../models/withdrawal');
+const Withdrawal = require('../../models/Withdrawal');
 const Account = require('../../models/client/Account');
 const User = require('../../models/User');
 
