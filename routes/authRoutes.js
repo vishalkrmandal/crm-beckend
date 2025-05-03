@@ -1,6 +1,6 @@
 // backend/routes/authRoutes.js
 const express = require('express');
-const { signup, verifyEmail, login, adminSignup, forgotPassword, resetPassword } = require('../controllers/authController');
+const { signup, verifyEmail, login, adminSignup, forgotPassword, resetPassword, impersonateClient } = require('../controllers/authController');
 const { protect, authorize } = require('../middlewares/auth');
 
 const router = express.Router();
@@ -11,5 +11,6 @@ router.get('/verify-email/:token', verifyEmail);
 router.post('/login', login);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/admin/impersonate/:clientId', protect, authorize('admin', 'superadmin'), impersonateClient);
 
 module.exports = router;

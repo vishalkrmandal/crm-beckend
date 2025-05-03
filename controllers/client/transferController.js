@@ -126,7 +126,7 @@ exports.createTransfer = async (req, res) => {
 // Get user accounts with balances (for transfer form)
 exports.getUserAccounts = async (req, res) => {
     try {
-        const accounts = await Account.findOne({
+        const accounts = await Account.find({
             user: req.user.id,
             status: true
         })

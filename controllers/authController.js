@@ -320,3 +320,57 @@ exports.resetPassword = async (req, res, next) => {
         });
     }
 };
+
+// @desc    Generate token for client impersonation by admin
+// @route   POST /api/auth/admin/impersonate/:clientId
+// @access  Private (admin and superadmin only)
+exports.impersonateClient = async (req, res, next) => {
+    try {
+        const { clientId } = req.params;
+
+        // Find the client user to impersonate
+        const clientUser = await User.findById(clientId);
+
+        if (!clientUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'Client not found'
+            });
+        }
+
+        // Ensure the user being impersonated is a client
+        if (clientUser.role !== 'client') {
+            return res.status(400).json({
+                success: false,
+                message: 'You can only impersonate client accounts'
+            });
+        }
+
+        // Generate token for the client
+        const clientToken = generateToken(clientUser._id);
+
+        // Create an impersonation record (optional, for auditing)
+        const adminId = req.user.id;
+        // You might want to add a model/collection to log this activity
+        // await ImpersonationLog.create({ adminId, clientId, timestamp: Date.now() });
+
+        res.status(200).json({
+            success: true,
+            clientToken,
+            user: {
+                id: clientUser._id,
+                firstname: clientUser.firstname,
+                lastname: clientUser.lastname,
+                email: clientUser.email,
+                role: clientUser.role,
+                isEmailVerified: clientUser.isEmailVerified
+            }
+        });
+    } catch (error) {
+        console.error('Client impersonation error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during client impersonation.'
+        });
+    }
+};
