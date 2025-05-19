@@ -1,0 +1,89 @@
+flowchart TB
+    %% Client Layer
+    subgraph ClientLayer["Client Layer"]
+        web("Client Web/Mobile UI"):::client
+        adminUi("Admin Dashboard"):::admin
+    end
+
+    %% API Gateway
+    subgraph APIGateway["API Gateway (Express)"]
+        index["index.js"]:::entry
+        security["Security Middleware<br>Auth, Error Handling, Rate Limiting"]:::security
+        
+        subgraph Routes["Routing Layer"]
+            clientRoutes["Client Routes<br>(Profile, Transaction, Transfer, Withdrawal)"]:::routes
+            adminRoutes["Admin Routes<br>(Client, Deposit, Transaction, Withdrawal)"]:::routes
+            generalRoutes["General Routes<br>(Auth, Deposit, Exchange, Group, Payment, Leverage)"]:::routes
+        end
+    end
+
+    %% Business Logic
+    subgraph BusinessLogic["Business Logic Layer"]
+        subgraph Controllers["Controllers"]
+            clientControllers["Client Controllers<br>(Account, Deposit, Profile, Transaction, Transfer, Withdrawal)"]:::controller
+            adminControllers["Admin Controllers<br>(Client, Deposit, Transaction, Withdrawal)"]:::controller
+            generalControllers["General Controllers<br>(Auth, Exchange, Group, Leverage, Payment)"]:::controller
+        end
+        
+        subgraph Services["Services & Utilities"]
+            emailService["Email Service"]:::service
+            utilities["Utilities<br>(Email Templates, Export Utils)"]:::util
+        end
+    end
+
+    %% Data Layer
+    subgraph DataLayer["Data Layer"]
+        subgraph Models["Mongoose Models"]
+            clientModels["Client Models<br>(Account, Profile, Transfer)"]:::model
+            txnModels["Transaction Models<br>(Deposit, Withdrawal)"]:::model
+            generalModels["General Models<br>(User, Exchange, Group, Leverage, Payment)"]:::model
+        end
+        mongoDB["MongoDB Cluster"]:::db
+    end
+
+    %% External Integrations
+    subgraph ExternalSystems["External Systems"]
+        smtp["Email SMTP<br>(Nodemailer)"]:::external
+        docGen["Document Generation<br>(PDFKit, ExcelJS, DOCX)"]:::external
+        exchangeAPI["External Exchange APIs"]:::external
+    end
+
+    %% Main Flow Connections
+    ClientLayer --> APIGateway
+    APIGateway --> BusinessLogic
+    BusinessLogic --> DataLayer
+    BusinessLogic --> ExternalSystems
+    
+    %% Detailed Connections
+    web --> index
+    adminUi --> index
+    index --> security
+    security --> Routes
+    Routes --> Controllers
+    
+    clientControllers --> clientModels
+    clientControllers --> txnModels
+    adminControllers --> generalModels
+    adminControllers --> txnModels
+    generalControllers --> generalModels
+    
+    Controllers --> Services
+    emailService --> utilities
+    emailService --> smtp
+    utilities --> docGen
+    generalControllers --> exchangeAPI
+    
+    Models --> mongoDB
+
+    %% Styles
+    classDef client fill:#B3E5FC,stroke:#0288D1
+    classDef admin fill:#C8E6C9,stroke:#2E7D32
+    classDef entry fill:#F8BBD0,stroke:#C2185B
+    classDef security fill:#FFCC80,stroke:#EF6C00
+    classDef routes fill:#FFF59D,stroke:#F9A825
+    classDef controller fill:#B2EBF2,stroke:#006064
+    classDef service fill:#D1C4E9,stroke:#512DA8
+    classDef util fill:#BCAAA4,stroke:#5D4037
+    classDef model fill:#80DEEA,stroke:#00796B
+    classDef db fill:#CFD8DC,stroke:#607D8B
+    classDef external fill:#E1BEE7,stroke:#8E24AA,stroke-dasharray: 5 5

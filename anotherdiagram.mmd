@@ -1,0 +1,183 @@
+flowchart TB
+    %% External UI
+    UI["Client/Admin UI"]:::external
+
+    %% API Layer
+    subgraph "API Layer"
+        index["Express App (index.js)"]:::api
+    end
+
+    %% Configuration
+    subgraph "Configuration"
+        envConfig["Environment & DB Setup (config/config.js)"]:::utility
+        dbConfig["MongoDB Connection (config/db.js)"]:::utility
+    end
+
+    %% Global Middleware
+    subgraph "Global Middleware"
+        helmet["Helmet"]:::middleware
+        rateLimit["Rate Limiting"]:::middleware
+        sanitize["Mongo Sanitize"]:::middleware
+        fileHandler["File Handler"]:::middleware
+    end
+
+    %% Authentication
+    authMw["Auth Middleware"]:::middleware
+
+    %% Controllers Layer
+    subgraph "Controllers"
+        subgraph "Client Controllers"
+            accCtrl["AccountController"]:::controller
+            depCtrl["DepositController"]:::controller
+            withCtrl["WithdrawalController"]:::controller
+            transCtrl["TransactionController"]:::controller
+            profCtrl["ProfileController"]:::controller
+            tfCtrl["TransferController"]:::controller
+        end
+        subgraph "Admin Controllers"
+            adminClient["ClientManagementController"]:::controller
+            adminDep["DepositApprovalController"]:::controller
+            adminWith["WithdrawalApprovalController"]:::controller
+            adminTrans["TransactionOversightController"]:::controller
+        end
+        subgraph "Config Controllers"
+            exchCtrl["ExchangeConfigController"]:::controller
+            grpCtrl["GroupConfigController"]:::controller
+            levCtrl["LeverageConfigController"]:::controller
+            payCtrl["PaymentMethodConfigController"]:::controller
+        end
+    end
+
+    %% Service & Utility Layer
+    subgraph "Services & Utils"
+        emailSvc["Email Service"]:::service
+        emailTpl["Email Templates"]:::utility
+        exportU["Export Utilities"]:::utility
+    end
+
+    %% Data Models
+    subgraph "Data Access Layer"
+        userModel["User Model"]:::model
+        depModel["Deposit Model"]:::model
+        withModel["Withdrawal Model"]:::model
+        exchModel["Exchange Model"]:::model
+        grpModel["Group Model"]:::model
+        levModel["Leverage Model"]:::model
+        payModel["PaymentMethod Model"]:::model
+        subgraph "Client Sub-models"
+            accModel["Account"]:::model
+            tfModel["Transfer"]:::model
+            profModel["Profile"]:::model
+        end
+    end
+
+    %% Database
+    mongo["MongoDB"]:::db
+
+    %% External Systems
+    smtp["SMTP Server"]:::external
+    exchangeAPI["Exchange APIs"]:::external
+
+    %% Connections
+    UI -->|"HTTP Request"| index
+    index -->|"Load Config"| envConfig
+    index -->|"Connect DB"| dbConfig
+    index --> helmet --> rateLimit --> sanitize --> fileHandler --> authMw
+    authMw --> index
+    authMw --> accCtrl
+    authMw --> depCtrl
+    authMw --> withCtrl
+    authMw --> transCtrl
+    authMw --> profCtrl
+    authMw --> tfCtrl
+    authMw --> adminClient
+    authMw --> adminDep
+    authMw --> adminWith
+    authMw --> adminTrans
+    authMw --> exchCtrl
+    authMw --> grpCtrl
+    authMw --> levCtrl
+    authMw --> payCtrl
+
+    accCtrl --> emailSvc
+    depCtrl --> emailSvc
+    withCtrl --> emailSvc
+    adminDep --> emailSvc
+    adminWith --> emailSvc
+
+    accCtrl --> exportU
+    adminTrans --> exportU
+
+    exchCtrl --> exchangeAPI
+    grpCtrl --> grpModel
+    levCtrl --> levModel
+    payCtrl --> payModel
+
+    accCtrl --> accModel
+    tfCtrl --> tfModel
+    profCtrl --> profModel
+
+    accCtrl --> userModel
+    depCtrl --> depModel
+    withCtrl --> withModel
+    transCtrl --> userModel
+    adminClient --> userModel
+    adminDep --> depModel
+    adminWith --> withModel
+    adminTrans --> depModel
+
+    userModel --> mongo
+    depModel --> mongo
+    withModel --> mongo
+    exchModel --> mongo
+    grpModel --> mongo
+    levModel --> mongo
+    payModel --> mongo
+    accModel --> mongo
+    tfModel --> mongo
+    profModel --> mongo
+
+    emailSvc --> smtp
+
+    %% Click Events
+    click index "https://github.com/vishalkrmandal/crm-beckend/blob/main/index.js"
+    click envConfig "https://github.com/vishalkrmandal/crm-beckend/blob/main/config/config.js"
+    click dbConfig "https://github.com/vishalkrmandal/crm-beckend/blob/main/config/db.js"
+    click authMw "https://github.com/vishalkrmandal/crm-beckend/blob/main/middlewares/auth.js"
+    click accCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/accountController.js"
+    click depCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/depositController.js"
+    click profCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/profileController.js"
+    click transCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/transactionController.js"
+    click tfCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/transferController.js"
+    click withCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/withdrawalClientController.js"
+    click adminClient "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/clientController.js"
+    click adminDep "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/depositController.js"
+    click adminWith "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/withdrawalController.js"
+    click adminTrans "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/adminTransactionController.js"
+    click exchCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/exchangeController.js"
+    click grpCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/groupController.js"
+    click levCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/leverageController.js"
+    click payCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/paymentMethodController.js"
+    click emailSvc "https://github.com/vishalkrmandal/crm-beckend/blob/main/services/emailService.js"
+    click emailTpl "https://github.com/vishalkrmandal/crm-beckend/blob/main/utils/emailTemplates.js"
+    click exportU "https://github.com/vishalkrmandal/crm-beckend/blob/main/utils/exportUtils.js"
+    click userModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/User.js"
+    click depModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Deposit.js"
+    click withModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/withdrawal.js"
+    click exchModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Exchange.js"
+    click grpModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Group.js"
+    click levModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Leverage.js"
+    click payModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/PaymentMethod.js"
+    click accModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/client/Account.js"
+    click tfModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/client/Transfer.js"
+    click profModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/client/profile.js"
+
+    %% Styles
+    classDef api fill:#ADD8E6,stroke:#333,stroke-width:1px;
+    classDef middleware fill:#D3D3C,stroke:#333;
+    classDef controller fill:#98FB98,stroke:#333;
+    classDef service fill:#FFD700,stroke:#333;
+    classDef utility fill:#FFA500,stroke:#333;
+    classDef model fill:#FFB6C1,stroke:#333;
+    classDef db fill:#FFA07A,stroke:#333;
+    classDef external fill:#DCDCDC,stroke:#333;

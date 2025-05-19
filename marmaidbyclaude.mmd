@@ -1,0 +1,219 @@
+flowchart TD
+    %% Client Layer
+    subgraph "Client Layer"
+        web("Client Web/Mobile UI"):::client
+        adminUi("Admin Dashboard"):::admin
+    end
+
+    %% API Gateway
+    subgraph "API Gateway (Express)"
+        index["index.js"]:::entry
+        configEnv["config/config.js"]:::config
+        configDB["config/db.js"]:::config
+        authmw["Auth Middleware<br/>(middlewares/auth.js)"]:::security
+        errmw["Async Error Wrapper<br/>(middlewares/asyncHandler.js)"]:::security
+        rateSec["Rate Limiter / Helmet / Sanitize"]:::security
+
+        subgraph "Routing Layer"
+            authRoutes["authRoutes.js"]:::routes
+            clientProfileRoutes["routes/client/profileRoutes.js"]:::routes
+            clientTxnRoutes["routes/client/transactionRoutes.js"]:::routes
+            clientTransferRoutes["routes/client/transferRoutes.js"]:::routes
+            clientWithdrawalRoutes["routes/client/withdrawalRoutes.js"]:::routes
+            depositRoutes["routes/depositRoutes.js"]:::routes
+            exchangeRoutes["routes/exchangeRoutes.js"]:::routes
+            groupRoutes["routes/groupRoutes.js"]:::routes
+            leverageRoutes["routes/leverageRoutes.js"]:::routes
+            paymentRoutes["routes/paymentMethodRoutes.js"]:::routes
+            adminClientRoutes["routes/admin/clientRoutes.js"]:::routes
+            adminDepositRoutes["routes/admin/adminDepositRoutes.js"]:::routes
+            adminTxnRoutes["routes/admin/adminTransactionRoutes.js"]:::routes
+            adminWithdrawalRoutes["routes/admin/withdrawalRoutes.js"]:::routes
+        end
+    end
+
+    %% Business Logic Layer
+    subgraph "Business Logic Layer"
+        subgraph Controllers
+            authCtrl["authController.js"]:::controller
+            clientAccountCtrl["controllers/client/accountController.js"]:::controller
+            clientDepositCtrl["controllers/client/depositController.js"]:::controller
+            clientProfileCtrl["controllers/client/profileController.js"]:::controller
+            clientTxnCtrl["controllers/client/transactionController.js"]:::controller
+            clientTransferCtrl["controllers/client/transferController.js"]:::controller
+            clientWithdrawalCtrl["controllers/client/withdrawalClientController.js"]:::controller
+            adminClientCtrl["controllers/admin/clientController.js"]:::controller
+            adminDepositCtrl["controllers/admin/depositController.js"]:::controller
+            adminWithdrawalCtrl["controllers/admin/withdrawalController.js"]:::controller
+            adminTxnCtrl["controllers/admin/adminTransactionController.js"]:::controller
+            exchangeCtrl["controllers/exchangeController.js"]:::controller
+            groupCtrl["controllers/groupController.js"]:::controller
+            leverageCtrl["controllers/leverageController.js"]:::controller
+            paymentCtrl["controllers/paymentMethodController.js"]:::controller
+        end
+
+        subgraph Services
+            emailService["services/emailService.js"]:::service
+        end
+
+        subgraph Utilities
+            emailTpl["utils/emailTemplates.js"]:::util
+            exportUtils["utils/exportUtils.js"]:::util
+        end
+    end
+
+    %% Data Layer
+    subgraph "Data Layer"
+        subgraph "Mongoose Models"
+            userModel["models/User.js"]:::model
+            depositModel["models/Deposit.js"]:::model
+            exchangeModel["models/Exchange.js"]:::model
+            groupModel["models/Group.js"]:::model
+            leverageModel["models/Leverage.js"]:::model
+            paymentModel["models/PaymentMethod.js"]:::model
+            withdrawalModel["models/withdrawal.js"]:::model
+            acctModel["models/client/Account.js"]:::model
+            transferModel["models/client/Transfer.js"]:::model
+            profileModel["models/client/profile.js"]:::model
+        end
+        mongoDB["MongoDB Cluster"]:::db
+    end
+
+    %% External Integrations
+    subgraph "External Systems"
+        smtp["Email SMTP (Nodemailer)"]:::external
+        docGen["Doc Generation<br/>PDFKit, ExcelJS, DOCX"]:::external
+        exchangeAPI["External Exchange APIs"]:::external
+    end
+
+    %% Connections
+    web -->|requests| index
+    adminUi -->|requests| index
+
+    index --> configEnv
+    index --> configDB
+    index --> authmw
+    index --> errmw
+    index --> rateSec
+    authmw --> authRoutes
+    errmw --> authRoutes
+    rateSec --> authRoutes
+
+    authRoutes --> authCtrl
+    clientProfileRoutes --> clientProfileCtrl
+    clientTxnRoutes --> clientTxnCtrl
+    clientTransferRoutes --> clientTransferCtrl
+    clientWithdrawalRoutes --> clientWithdrawalCtrl
+    depositRoutes --> clientDepositCtrl
+    exchangeRoutes --> exchangeCtrl
+    groupRoutes --> groupCtrl
+    leverageRoutes --> leverageCtrl
+    paymentRoutes --> paymentCtrl
+    adminClientRoutes --> adminClientCtrl
+    adminDepositRoutes --> adminDepositCtrl
+    adminTxnRoutes --> adminTxnCtrl
+    adminWithdrawalRoutes --> adminWithdrawalCtrl
+
+    authCtrl --> userModel
+    clientAccountCtrl --> acctModel
+    clientDepositCtrl --> depositModel
+    clientProfileCtrl --> profileModel
+    clientTxnCtrl --> depositModel
+    clientTxnCtrl --> withdrawalModel
+    clientTransferCtrl --> transferModel
+    clientWithdrawalCtrl --> withdrawalModel
+
+    adminDepositCtrl --> depositModel
+    adminClientCtrl --> userModel
+    adminWithdrawalCtrl --> withdrawalModel
+    adminTxnCtrl --> depositModel
+    adminTxnCtrl --> withdrawalModel
+
+    exchangeCtrl --> exchangeModel
+    groupCtrl --> groupModel
+    leverageCtrl --> leverageModel
+    paymentCtrl --> paymentModel
+
+    userModel --> mongoDB
+    depositModel --> mongoDB
+    exchangeModel --> mongoDB
+    groupModel --> mongoDB
+    leverageModel --> mongoDB
+    paymentModel --> mongoDB
+    withdrawalModel --> mongoDB
+    acctModel --> mongoDB
+    transferModel --> mongoDB
+    profileModel --> mongoDB
+
+    authCtrl --> emailService
+    clientDepositCtrl --> emailService
+    adminDepositCtrl --> emailService
+    emailService --> emailTpl
+    emailService --> exportUtils
+    emailService --> smtp
+    exportUtils --> docGen
+    clientTransferCtrl --> exchangeAPI
+    exchangeCtrl --> exchangeAPI
+
+    %% Click Events
+    click index "https://github.com/vishalkrmandal/crm-beckend/blob/main/index.js"
+    click configEnv "https://github.com/vishalkrmandal/crm-beckend/blob/main/config/config.js"
+    click configDB "https://github.com/vishalkrmandal/crm-beckend/blob/main/config/db.js"
+    click authmw "https://github.com/vishalkrmandal/crm-beckend/blob/main/middlewares/auth.js"
+    click errmw "https://github.com/vishalkrmandal/crm-beckend/blob/main/middlewares/asyncHandler.js"
+    click authRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/authRoutes.js"
+    click clientProfileRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/client/profileRoutes.js"
+    click clientTxnRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/client/transactionRoutes.js"
+    click clientTransferRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/client/transferRoutes.js"
+    click clientWithdrawalRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/client/withdrawalRoutes.js"
+    click depositRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/depositRoutes.js"
+    click exchangeRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/exchangeRoutes.js"
+    click groupRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/groupRoutes.js"
+    click leverageRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/leverageRoutes.js"
+    click paymentRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/paymentMethodRoutes.js"
+    click adminClientRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/admin/clientRoutes.js"
+    click adminDepositRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/admin/adminDepositRoutes.js"
+    click adminTxnRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/admin/adminTransactionRoutes.js"
+    click adminWithdrawalRoutes "https://github.com/vishalkrmandal/crm-beckend/blob/main/routes/admin/withdrawalRoutes.js"
+    click authCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/authController.js"
+    click clientAccountCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/accountController.js"
+    click clientDepositCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/depositController.js"
+    click clientProfileCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/profileController.js"
+    click clientTxnCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/transactionController.js"
+    click clientTransferCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/transferController.js"
+    click clientWithdrawalCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/client/withdrawalClientController.js"
+    click adminClientCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/clientController.js"
+    click adminDepositCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/depositController.js"
+    click adminWithdrawalCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/withdrawalController.js"
+    click adminTxnCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/admin/adminTransactionController.js"
+    click exchangeCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/exchangeController.js"
+    click groupCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/groupController.js"
+    click leverageCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/leverageController.js"
+    click paymentCtrl "https://github.com/vishalkrmandal/crm-beckend/blob/main/controllers/paymentMethodController.js"
+    click emailService "https://github.com/vishalkrmandal/crm-beckend/blob/main/services/emailService.js"
+    click emailTpl "https://github.com/vishalkrmandal/crm-beckend/blob/main/utils/emailTemplates.js"
+    click exportUtils "https://github.com/vishalkrmandal/crm-beckend/blob/main/utils/exportUtils.js"
+    click userModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/User.js"
+    click depositModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Deposit.js"
+    click exchangeModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Exchange.js"
+    click groupModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Group.js"
+    click leverageModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/Leverage.js"
+    click paymentModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/PaymentMethod.js"
+    click withdrawalModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/withdrawal.js"
+    click acctModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/client/Account.js"
+    click transferModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/client/Transfer.js"
+    click profileModel "https://github.com/vishalkrmandal/crm-beckend/blob/main/models/client/profile.js"
+
+    %% Styles
+    classDef client fill:#B3E5FC,stroke:#0288D1
+    classDef admin fill:#C8E6C9,stroke:#2E7D32
+    classDef entry fill:#F8BBD0,stroke:#C2185B
+    classDef config fill:#FFD54F,stroke:#F57F17
+    classDef security fill:#FFCC80,stroke:#EF6C00
+    classDef routes fill:#FFF59D,stroke:#F9A825
+    classDef controller fill:#B2EBF2,stroke:#006064
+    classDef service fill:#D1C4E9,stroke:#512DA8
+    classDef util fill:#BCAAA4,stroke:#5D4037
+    classDef model fill:#80DEEA,stroke:#00796B
+    classDef db fill:#CFD8DC,stroke:#607D8B
+    classDef external fill:#E1BEE7,stroke:#8E24AA,stroke-dasharray: 5 5
