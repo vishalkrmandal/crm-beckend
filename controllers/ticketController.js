@@ -131,6 +131,8 @@ exports.createTicket = async (req, res, next) => {
 // @access  Private
 exports.getTickets = async (req, res, next) => {
     try {
+        console.log('User:', req.user);
+        console.log('Request:', req);
         let query = {};
 
         // If user is a client, only show their tickets

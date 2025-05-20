@@ -1,3 +1,5 @@
+// Backend\index.js
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -25,6 +27,8 @@ const profileRoutes = require('./routes/client/profileRoutes');
 const clientRoutes = require('./routes/admin/clientRoutes');
 const adminTransactionRoutes = require('./routes/admin/adminTransactionRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
+const ibConfigurationRoutes = require('./routes/admin/ibConfigurationRoutes');
+
 
 // Connect to MongoDB
 connectDB();
@@ -61,6 +65,8 @@ app.use('/api/admindeposits', adminDepositRoutes);
 app.use('/api/adminwithdrawals', adminWithdrawalRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/admin/transactions', adminTransactionRoutes);
+app.use('/api/ib-configurations', ibConfigurationRoutes);
+
 
 // Client Routes
 app.use('/api/accounts', accountRoutes);
