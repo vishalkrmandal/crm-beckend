@@ -8,7 +8,9 @@ const {
     getTicketById,
     updateTicket,
     addMessage,
-    getTicketStats
+    getTicketStats,
+    getClientTicketStats,
+    getClientTickets
 } = require('../controllers/ticketController');
 const multer = require('multer');
 const path = require('path');
@@ -48,5 +50,8 @@ router.get('/stats', protect, authorize('admin', 'superadmin'), getTicketStats);
 router.get('/:id', protect, getTicketById);
 router.put('/:id', protect, authorize('admin', 'superadmin'), updateTicket);
 router.post('/:id/messages', protect, upload.single('attachment'), addMessage);
+
+router.get('/client/:clientId/stats', protect, authorize('admin', 'superadmin'), getClientTicketStats);
+router.get('/client/:clientId/all', protect, authorize('admin', 'superadmin'), getClientTickets);
 
 module.exports = router;

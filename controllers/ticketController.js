@@ -435,3 +435,55 @@ exports.getTicketStats = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Get ticket statistics for a specific client
+// @route   GET /api/tickets/client/:clientId/stats
+// @access  Private (Admin only)
+exports.getClientTicketStats = async (req, res, next) => {
+    try {
+        const { clientId } = req.params;
+
+        // Get total tickets for this client
+        const totalTickets = await Ticket.countDocuments({ createdBy: clientId });
+        const openTickets = await Ticket.countDocuments({
+            createdBy: clientId,
+            status: { $in: ['new', 'open', 'inProgress'] }
+        });
+        const closedTickets = await Ticket.countDocuments({
+            createdBy: clientId,
+            status: 'closed'
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                totalTickets,
+                openTickets,
+                closedTickets
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+exports.getClientTickets = async (req, res, next) => {
+    try {
+        const { clientId } = req.params;
+
+        // Find tickets for this client
+        const tickets = await Ticket.find({ createdBy: clientId })
+            .populate('createdBy', 'firstname lastname email')
+            .populate('assignedTo', 'firstname lastname email')
+            .sort({ updatedAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: tickets.length,
+            data: tickets
+        });
+    } catch (error) {
+        next(error);
+    }
+};
