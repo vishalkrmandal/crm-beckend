@@ -1,6 +1,7 @@
 // backend/controllers/authController.js
 const crypto = require('crypto');
 const User = require('../models/User');
+const IBConfiguration = require('../models/IBConfiguration');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
@@ -72,7 +73,7 @@ exports.adminSignup = async (req, res, next) => {
 // @access  Public
 exports.signup = async (req, res, next) => {
     try {
-        const { firstname, lastname, email, password, country, phone, dateofbirth } = req.body;
+        const { firstname, lastname, email, password, country, phone, dateofbirth, referralCode } = req.body;
 
         console.log(req.body);
 
@@ -83,6 +84,24 @@ exports.signup = async (req, res, next) => {
                 success: false,
                 message: 'User with this email already exists'
             });
+        }
+
+        // Validate referral code if provided
+        let validReferral = null;
+        if (referralCode) {
+            const ibConfiguration = await IBConfiguration.findOne({
+                referralCode,
+                status: 'active'
+            });
+
+            if (!ibConfiguration) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid referral code'
+                });
+            }
+
+            validReferral = referralCode;
         }
 
         // Create new user (with default role as 'client')
@@ -97,7 +116,8 @@ exports.signup = async (req, res, next) => {
             },
             phone,
             dateofbirth: new Date(dateofbirth),
-            role: 'client' // Set default role explicitly
+            role: 'client',
+            referredBy: validReferral
         });
 
         // Generate verification token

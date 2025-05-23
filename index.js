@@ -29,6 +29,8 @@ const adminTransactionRoutes = require('./routes/admin/adminTransactionRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
 const ibConfigurationRoutes = require('./routes/admin/ibConfigurationRoutes');
 const adminClientRoutes = require('./routes/adminClientRoutes');
+const ibClientConfigurationRoutes = require('./routes/client/ibClientConfigurationRoutes');
+const ibWithdrawalRoutes = require('./routes/client/ibwithdrawalRoutes');
 
 
 // Connect to MongoDB
@@ -77,6 +79,9 @@ app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/transfers', transferRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/ibclients/withdrawals', ibWithdrawalRoutes);
+app.use('/api/ibclients/ib-configurations', ibClientConfigurationRoutes);
+
 
 // Ticket routes
 app.use('/api/tickets', ticketRoutes);
@@ -94,5 +99,12 @@ app.use((err, req, res, next) => {
 // Start the server
 const PORT = config.PORT;
 server.listen(PORT, () => {
-  console.log(`Server running in ${config.NODE_ENV} mode on port ${PORT}`);
+  console.log(`
+🚀 Server is running successfully!
+📍 Environment: ${process.env.NODE_ENV || 'development'}
+🌐 Port: ${PORT}
+📊 Database: ${process.env.MONGO_URI ? '✅ Connected' : '❌ Not configured'}
+🔗 Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}
+⏰ Started at: ${new Date().toLocaleString()}
+  `);
 });
