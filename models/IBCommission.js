@@ -1,10 +1,11 @@
 // backend/models/IBCommission.js
+// backend/models/IBCommission.js - Updated to work with bonusPerLot
 const mongoose = require('mongoose');
 
 const IBCommissionSchema = new mongoose.Schema({
     ibConfigurationId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'IBConfiguration',
+        ref: 'IBClientConfiguration',
         required: true
     },
     userId: {
@@ -26,7 +27,16 @@ const IBCommissionSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    commissionRate: {
+    groupId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Group',
+        required: true
+    },
+    lotSize: {
+        type: Number,
+        required: true
+    },
+    bonusPerLot: {
         type: Number,
         required: true
     },

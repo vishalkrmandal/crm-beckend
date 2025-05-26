@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const IBWithdrawalSchema = new mongoose.Schema({
     ibConfigurationId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'IBConfiguration',
+        ref: 'IBClientConfiguration',
         required: true
     },
     userId: {

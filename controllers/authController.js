@@ -1,7 +1,7 @@
 // backend/controllers/authController.js
 const crypto = require('crypto');
 const User = require('../models/User');
-const IBConfiguration = require('../models/IBConfiguration');
+const IBClientConfiguration = require('../models/client/IBClientConfiguration');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
@@ -12,7 +12,6 @@ const generateToken = (id) => {
         expiresIn: config.JWT_EXPIRE
     });
 };
-
 
 // @desc    Register a new admin user (superadmin only)
 // @route   POST /api/auth/admin/signup
@@ -75,7 +74,7 @@ exports.signup = async (req, res, next) => {
     try {
         const { firstname, lastname, email, password, country, phone, dateofbirth, referralCode } = req.body;
 
-        console.log(req.body);
+        console.log('Signup request:', { ...req.body, password: '[HIDDEN]' });
 
         // Check if user already exists
         const existingUser = await User.findOne({ email });
@@ -88,8 +87,10 @@ exports.signup = async (req, res, next) => {
 
         // Validate referral code if provided
         let validReferral = null;
+        let referringIBConfig = null;
+
         if (referralCode) {
-            const ibConfiguration = await IBConfiguration.findOne({
+            const ibConfiguration = await IBClientConfiguration.findOne({
                 referralCode,
                 status: 'active'
             });
@@ -97,11 +98,12 @@ exports.signup = async (req, res, next) => {
             if (!ibConfiguration) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid referral code'
+                    message: 'Invalid or inactive referral code'
                 });
             }
 
             validReferral = referralCode;
+            referringIBConfig = ibConfiguration;
         }
 
         // Create new user (with default role as 'client')
@@ -127,9 +129,33 @@ exports.signup = async (req, res, next) => {
         // Send verification email
         await sendVerificationEmail(user, verificationToken);
 
+        // Auto-create IB configuration if user signed up through referral
+        if (validReferral && referringIBConfig) {
+            try {
+                // Create IB configuration with pending status (no referral code yet)
+                await IBClientConfiguration.create({
+                    userId: user._id,
+                    referralCode: null, // No referral code until user creates it manually
+                    parent: referringIBConfig._id,
+                    level: referringIBConfig.level + 1,
+                    status: 'pending', // Pending until user creates their referral code
+                    referredBy: validReferral
+                });
+
+                console.log(`Auto-created IB configuration for user ${user._id} with referral ${validReferral}`);
+            } catch (ibError) {
+                console.error('Error creating IB configuration:', ibError);
+                // Don't fail signup if IB creation fails, just log it
+            }
+        }
+
         res.status(201).json({
             success: true,
-            message: 'Registration successful! Please check your email to verify your account.'
+            message: 'Registration successful! Please check your email to verify your account.',
+            data: {
+                hasReferral: !!validReferral,
+                referralCode: validReferral
+            }
         });
     } catch (error) {
         console.error('Signup error:', error);
@@ -245,7 +271,6 @@ exports.login = async (req, res, next) => {
         });
     }
 };
-
 
 // @desc    Forgot password
 // @route   POST /api/auth/forgot-password

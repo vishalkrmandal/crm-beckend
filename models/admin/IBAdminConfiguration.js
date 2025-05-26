@@ -1,7 +1,7 @@
 // backend/models/IBConfiguration.js
 const mongoose = require('mongoose');
 
-const IBConfigurationSchema = new mongoose.Schema({
+const IBAdminConfigurationSchema = new mongoose.Schema({
     groupId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Group',
@@ -21,6 +21,6 @@ const IBConfigurationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Compound index to ensure unique level per group
-IBConfigurationSchema.index({ groupId: 1, level: 1 }, { unique: true });
+IBAdminConfigurationSchema.index({ groupId: 1, level: 1 }, { unique: true });
 
-module.exports = mongoose.model('IBConfiguration', IBConfigurationSchema);
+module.exports = mongoose.model('IBAdminConfiguration', IBAdminConfigurationSchema);

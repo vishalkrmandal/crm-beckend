@@ -1,4 +1,4 @@
-// backend/routes/ibConfigurationRoutes.js
+// backend/routes/ibAdminConfigurationRoutes.js
 const express = require('express');
 const {
     getIBConfigurationsByGroup,
@@ -6,7 +6,7 @@ const {
     createIBConfiguration,
     updateIBConfiguration,
     deleteIBConfiguration
-} = require('../../controllers/admin/ibConfigurationController');
+} = require('../../controllers/admin/ibAdminConfigurationController');
 const { protect, authorize } = require('../../middlewares/auth');
 
 const router = express.Router();

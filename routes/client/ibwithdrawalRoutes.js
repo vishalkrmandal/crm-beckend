@@ -1,4 +1,4 @@
-// backend/routes/client/withdrawalRoutes.js
+// backend/routes/client/ibwithdrawalRoutes.js
 const express = require('express');
 const {
     requestIBWithdrawal,

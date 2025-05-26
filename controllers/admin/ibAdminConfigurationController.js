@@ -1,5 +1,5 @@
 // backend/controllers/ibConfigurationController.js
-const IBConfiguration = require('../../models/admin/IBConfiguration');
+const IBConfiguration = require('../../models/admin/IBAdminConfiguration');
 const Group = require('../../models/Group');
 
 // Get all IB configurations for a specific group

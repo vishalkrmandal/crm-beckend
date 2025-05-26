@@ -1,4 +1,4 @@
-// backend/routes/admin/ibConfigurationRoutes.js
+// backend/routes/admin/ibClientConfigurationRoutes.js
 const express = require('express');
 const {
     createIBConfiguration,
@@ -6,8 +6,9 @@ const {
     getIBDashboardSummary,
     getPartnersList,
     verifyReferralCode,
-    getIBTree
-} = require('../../controllers/ibConfigurationController');
+    getIBTree,
+    getTradeCommissions
+} = require('../../controllers/client/ibClientConfigurationController');
 const { protect, authorize } = require('../../middlewares/auth');
 
 const router = express.Router();
@@ -21,5 +22,6 @@ router.get('/my-code', protect, authorize('client'), getMyIBConfiguration);
 router.get('/dashboard', protect, authorize('client'), getIBDashboardSummary);
 router.get('/partners', protect, authorize('client'), getPartnersList);
 router.get('/tree', protect, authorize('client'), getIBTree);
+router.get('/trade-commissions', protect, authorize('client'), getTradeCommissions);
 
 module.exports = router;

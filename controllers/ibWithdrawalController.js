@@ -1,10 +1,10 @@
 // backend/controllers/ibWithdrawalController.js
-const IBConfiguration = require('../models/IBConfiguration');
+const IBClientConfiguration = require('../models/client/IBClientConfiguration');
 const IBCommission = require('../models/IBCommission');
 const IBWithdrawal = require('../models/IBWithdrawal');
 
 // @desc    Request IB commission withdrawal
-// @route   POST /api/withdrawals/ib-withdraw
+// @route   POST /api/ibclients/withdrawals/ib-withdraw
 // @access  Private (Client)
 exports.requestIBWithdrawal = async (req, res) => {
     try {
@@ -17,7 +17,7 @@ exports.requestIBWithdrawal = async (req, res) => {
             });
         }
 
-        const ibConfiguration = await IBConfiguration.findOne({ userId: req.user.id });
+        const ibConfiguration = await IBClientConfiguration.findOne({ userId: req.user.id });
 
         if (!ibConfiguration) {
             return res.status(404).json({
@@ -26,6 +26,7 @@ exports.requestIBWithdrawal = async (req, res) => {
             });
         }
 
+        // Calculate available balance
         const totalCommissions = await IBCommission.aggregate([
             { $match: { ibConfigurationId: ibConfiguration._id } },
             { $group: { _id: null, total: { $sum: "$commissionAmount" } } }
@@ -33,6 +34,7 @@ exports.requestIBWithdrawal = async (req, res) => {
 
         const totalCommission = totalCommissions.length > 0 ? totalCommissions[0].total : 0;
 
+        // Get total withdrawals
         const totalWithdrawals = await IBWithdrawal.aggregate([
             {
                 $match: {
@@ -45,8 +47,10 @@ exports.requestIBWithdrawal = async (req, res) => {
 
         const totalWithdrawn = totalWithdrawals.length > 0 ? totalWithdrawals[0].total : 0;
 
+        // Calculate withdrawable balance
         const withdrawableBalance = totalCommission - totalWithdrawn;
 
+        // Check if enough balance is available
         if (amount > withdrawableBalance) {
             return res.status(400).json({
                 success: false,
@@ -54,6 +58,7 @@ exports.requestIBWithdrawal = async (req, res) => {
             });
         }
 
+        // Create withdrawal request
         const withdrawal = await IBWithdrawal.create({
             ibConfigurationId: ibConfiguration._id,
             userId: req.user.id,
@@ -75,11 +80,11 @@ exports.requestIBWithdrawal = async (req, res) => {
 };
 
 // @desc    Get IB withdrawal history
-// @route   GET /api/withdrawals/ib-withdrawals
+// @route   GET /api/ibclients/withdrawals/ib-withdrawals
 // @access  Private (Client)
 exports.getIBWithdrawals = async (req, res) => {
     try {
-        const ibConfiguration = await IBConfiguration.findOne({ userId: req.user.id });
+        const ibConfiguration = await IBClientConfiguration.findOne({ userId: req.user.id });
 
         if (!ibConfiguration) {
             return res.status(404).json({
