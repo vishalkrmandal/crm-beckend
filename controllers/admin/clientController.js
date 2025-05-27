@@ -385,14 +385,127 @@ exports.getUserAccounts = async (req, res) => {
         }
 
         const accounts = await Account.find({ user: userId })
-            .select('mt5Account name accountType leverage balance equity profit')
+            .select('mt5Account name accountType leverage balance equity profit managerIndex')
             .sort({ createdAt: -1 });
 
-        res.status(200).json({
-            success: true,
-            count: accounts.length,
-            data: accounts
-        });
+        if (accounts.length === 0) {
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                data: []
+            });
+        }
+
+        try {
+            // Extract MT5 accounts and group by manager index
+            const accountsByManager = {};
+
+            accounts.forEach(account => {
+                const managerIndex = account.managerIndex || '2';
+                if (!accountsByManager[managerIndex]) {
+                    accountsByManager[managerIndex] = [];
+                }
+                accountsByManager[managerIndex].push({
+                    mt5Account: parseInt(account.mt5Account),
+                    accountId: account._id
+                });
+            });
+
+            console.log('Accounts grouped by manager:', accountsByManager);
+
+            // Fetch updated info for each manager group
+            for (const [managerIndex, managerAccounts] of Object.entries(accountsByManager)) {
+                const mt5AccountNumbers = managerAccounts.map(acc => acc.mt5Account);
+
+                console.log(`Fetching info for Manager ${managerIndex}:`, mt5AccountNumbers);
+
+                const apiUrl = 'https://api.infoapi.biz/api/mt5/GetUserInfoByAccounts';
+                const requestData = {
+                    Manager_Index: parseInt(managerIndex),
+                    MT5Accounts: mt5AccountNumbers
+                };
+
+                const axios = require('axios');
+                const response = await axios.post(apiUrl, requestData, {
+                    timeout: 30000,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log(`API Response for Manager ${managerIndex}:`, response.data);
+
+                // Update accounts in database if API call was successful
+                if (response.data && Array.isArray(response.data)) {
+                    const updatePromises = response.data.map(async (userInfo) => {
+                        const mt5Account = userInfo.MT5Account || userInfo.Login || userInfo.login;
+                        const balance = userInfo.Balance || userInfo.balance || 0;
+                        const equity = userInfo.Equity || userInfo.equity || 0;
+
+                        console.log(`Processing account data:`, {
+                            mt5Account,
+                            balance,
+                            equity,
+                            rawData: userInfo
+                        });
+
+                        if (mt5Account) {
+                            // Find the corresponding account ID
+                            const accountMapping = managerAccounts.find(acc => acc.mt5Account === mt5Account);
+
+                            if (accountMapping) {
+                                console.log(`Updating account ${mt5Account}: Balance=${balance}, Equity=${equity}`);
+
+                                const updatedAccount = await Account.findByIdAndUpdate(
+                                    accountMapping.accountId,
+                                    {
+                                        balance: balance,
+                                        equity: equity
+                                    },
+                                    { new: true }
+                                );
+
+                                console.log(`Account updated successfully:`, updatedAccount);
+                                return updatedAccount;
+                            } else {
+                                console.log(`No account mapping found for MT5Account: ${mt5Account}`);
+                            }
+                        } else {
+                            console.log(`No MT5Account found in API response:`, userInfo);
+                        }
+                        return null;
+                    });
+
+                    await Promise.all(updatePromises.filter(p => p !== null));
+                }
+            }
+
+            // Fetch updated accounts from database
+            const updatedAccounts = await Account.find({ user: userId })
+                .select('mt5Account name accountType leverage balance equity profit')
+                .sort({ createdAt: -1 });
+
+            console.log('Updated accounts sent to frontend:', updatedAccounts.length);
+
+            res.status(200).json({
+                success: true,
+                count: updatedAccounts.length,
+                data: updatedAccounts
+            });
+
+        } catch (apiError) {
+            console.error('External API Error in getUserAccounts:', apiError.message);
+
+            // If API fails, still return the accounts from database
+            console.log('API failed, returning accounts from database');
+            res.status(200).json({
+                success: true,
+                count: accounts.length,
+                data: accounts,
+                warning: 'Account balances may not be up to date due to API error'
+            });
+        }
+
     } catch (error) {
         console.error('Error fetching user accounts:', error);
         res.status(500).json({

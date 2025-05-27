@@ -7,6 +7,7 @@ const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const docx = require('docx');
 const { Document, Paragraph, Table, TableRow, TableCell, TextRun } = docx;
+const axios = require('axios'); // Add this import
 
 // Get all deposits with filtering and sorting
 // Get all deposits with filtering, sorting and data from related collections
@@ -217,13 +218,13 @@ exports.getDepositById = async (req, res) => {
     }
 };
 
-// Approve deposit
+// Approve deposit with external API integration
 exports.approveDeposit = async (req, res) => {
     try {
         const { bonus, remarks } = req.body;
 
-        // Find the deposit
-        let deposit = await Deposit.findById(req.params.id);
+        // Find the deposit and populate account data
+        let deposit = await Deposit.findById(req.params.id).populate('account');
 
         if (!deposit) {
             return res.status(404).json({
@@ -232,24 +233,122 @@ exports.approveDeposit = async (req, res) => {
             });
         }
 
-        // Update deposit status
-        deposit.status = 'Approved';
-        deposit.approvedDate = Date.now();
-        deposit.bonus = bonus || 0;
-        deposit.remarks = remarks || '';
+        // Get Manager Index from environment variables
+        // const managerIndex = process.env.Manager_Index || '2';
+        const managerIndex = deposit.account.managerIndex || '2';
+        const mt5Account = deposit.account.mt5Account;
+        const totalAmount = deposit.amount + (bonus || 0);
 
-        // Save the changes
-        await deposit.save();
-
-        // Populate user information for the response
-        await deposit.populate('user', 'firstname lastname email');
-
-        return res.status(200).json({
-            success: true,
-            data: deposit
+        console.log('Processing deposit approval:', {
+            depositId: deposit._id,
+            mt5Account: mt5Account,
+            originalAmount: deposit.amount,
+            bonus: bonus || 0,
+            totalAmount: totalAmount,
+            managerIndex: managerIndex
         });
+
+        try {
+            // Step 1: Make deposit through external API
+            const depositApiUrl = `https://api.infoapi.biz/api/mt5/MakeDepositBalance`;
+            const depositParams = {
+                Manager_Index: managerIndex,
+                MT5Account: mt5Account,
+                Amount: totalAmount,
+                Comment: `Deposit approval - ID: ${deposit._id}`
+            };
+
+            console.log('Making deposit API call:', depositParams);
+
+            const depositResponse = await axios.get(depositApiUrl, {
+                params: depositParams,
+                timeout: 30000 // 30 seconds timeout
+            });
+
+            console.log('Deposit API Response:', depositResponse.data);
+
+            // Check if deposit was successful
+            if (!depositResponse.data || depositResponse.data.error) {
+                throw new Error(`Deposit API failed: ${depositResponse.data?.message || 'Unknown error'}`);
+            }
+
+            // Step 2: Get updated balance and equity
+            const balanceApiUrl = `https://api.infoapi.biz/api/mt5/GetUserInfo`;
+            const balanceParams = {
+                Manager_Index: managerIndex,
+                MT5Account: mt5Account
+            };
+
+            console.log('Making balance check API call:', balanceParams);
+
+            const balanceResponse = await axios.get(balanceApiUrl, {
+                params: balanceParams,
+                timeout: 30000 // 30 seconds timeout
+            });
+
+            console.log('Balance API Response:', balanceResponse.data);
+
+            // Check if balance API was successful
+            if (!balanceResponse.data || balanceResponse.data.error) {
+                throw new Error(`Balance API failed: ${balanceResponse.data?.message || 'Unknown error'}`);
+            }
+
+            // Extract balance and equity from response
+            const userInfo = balanceResponse.data;
+            const newBalance = userInfo.Balance || userInfo.balance || 0;
+            const newEquity = userInfo.Equity || userInfo.equity || 0;
+
+            console.log('Updated account info:', {
+                balance: newBalance,
+                equity: newEquity
+            });
+
+            // Step 3: Update account balance and equity in database
+            await Account.findByIdAndUpdate(deposit.account._id, {
+                balance: newBalance,
+                equity: newEquity
+            });
+
+            // Step 4: Update deposit status
+            deposit.status = 'Approved';
+            deposit.approvedDate = Date.now();
+            deposit.bonus = bonus || 0;
+            deposit.remarks = remarks || '';
+
+            // Save the changes
+            await deposit.save();
+
+            // Populate user information for the response
+            await deposit.populate('user', 'firstname lastname email');
+
+            console.log('Deposit approved successfully:', {
+                depositId: deposit._id,
+                newBalance: newBalance,
+                newEquity: newEquity
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: deposit,
+                accountInfo: {
+                    balance: newBalance,
+                    equity: newEquity
+                }
+            });
+
+        } catch (apiError) {
+            console.error('External API Error:', apiError.message);
+
+            // Return specific error for API failures
+            return res.status(400).json({
+                success: false,
+                message: `Failed to process deposit: ${apiError.message}`,
+                error: 'EXTERNAL_API_ERROR'
+            });
+        }
+
     } catch (error) {
-        console.error(error);
+        console.error('Approve Deposit Error:', error);
         return res.status(500).json({
             success: false,
             message: 'Server Error'
@@ -493,7 +592,6 @@ const exportExcel = async (deposits, res) => {
     res.end();
 };
 
-
 const exportPDF = async (deposits, res) => {
     const doc = new PDFDocument({ margin: 30 });
 
@@ -620,7 +718,6 @@ const exportPDF = async (deposits, res) => {
 
     doc.end();
 };
-
 
 const exportDOCX = async (deposits, res) => {
     try {
