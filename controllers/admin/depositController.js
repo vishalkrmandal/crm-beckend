@@ -10,7 +10,6 @@ const { Document, Paragraph, Table, TableRow, TableCell, TextRun } = docx;
 const axios = require('axios'); // Add this import
 
 // Get all deposits with filtering and sorting
-// Get all deposits with filtering, sorting and data from related collections
 exports.getDeposits = async (req, res) => {
     console.log('Get Deposits called');
     console.log('User:', req.user.id);
@@ -23,13 +22,15 @@ exports.getDeposits = async (req, res) => {
             paymentMethod,
             startDate,
             endDate,
-            sortField = 'requestedDate',
-            sortOrder = 'desc',
+            sortField = 'updatedAt', // Default to updatedAt for latest modifications first
+            sortOrder = 'desc', // Default to desc for latest first
             page = 1,
             limit = 10
         } = req.query;
 
         console.log('Query Params:', req.query);
+        console.log('Search term:', search);
+        console.log('Applied filters:', { status, planType, paymentMethod, startDate, endDate });
 
         // Build match query for aggregation
         let matchQuery = {};
@@ -50,14 +51,6 @@ exports.getDeposits = async (req, res) => {
                 $gte: new Date(startDate),
                 $lte: new Date(endDate)
             };
-        }
-
-        // Build search conditions
-        if (search) {
-            // Will be enhanced in the aggregation pipeline
-            matchQuery.$or = [
-                // Will search in mt5Account after lookup
-            ];
         }
 
         // First lookup and match with aggregation
@@ -106,15 +99,20 @@ exports.getDeposits = async (req, res) => {
             }
         ];
 
-        // Add search conditions if needed
-        if (search) {
+        // Add search conditions if needed (after lookups to access joined data)
+        if (search && search.trim()) {
             pipeline.push({
                 $match: {
                     $or: [
-                        { 'accountData.mt5Account': { $regex: search, $options: 'i' } },
-                        { 'userData.firstname': { $regex: search, $options: 'i' } },
-                        { 'userData.lastname': { $regex: search, $options: 'i' } },
-                        { 'userData.email': { $regex: search, $options: 'i' } }
+                        { 'accountData.mt5Account': { $regex: search.trim(), $options: 'i' } },
+                        { 'userData.firstname': { $regex: search.trim(), $options: 'i' } },
+                        { 'userData.lastname': { $regex: search.trim(), $options: 'i' } },
+                        { 'userData.email': { $regex: search.trim(), $options: 'i' } },
+                        { 'paymentMethodData.name': { $regex: search.trim(), $options: 'i' } },
+                        { $expr: { $regexMatch: { input: { $toString: "$amount" }, regex: search.trim(), options: "i" } } },
+                        { 'status': { $regex: search.trim(), $options: 'i' } },
+                        { 'remarks': { $regex: search.trim(), $options: 'i' } },
+                        { 'notes': { $regex: search.trim(), $options: 'i' } }
                     ]
                 }
             });
@@ -129,16 +127,57 @@ exports.getDeposits = async (req, res) => {
             });
         }
 
-        // First get total count for pagination
+        // Map frontend sort fields to actual database fields
+        let actualSortField;
+        switch (sortField) {
+            case 'requestedOn':
+            case 'requestedDate':
+                actualSortField = 'transactionDate';
+                break;
+            case 'approvedOn':
+                actualSortField = 'approvedDate';
+                break;
+            case 'rejectedOn':
+                actualSortField = 'rejectedDate';
+                break;
+            case 'amount':
+                actualSortField = 'amount';
+                break;
+            case 'status':
+                actualSortField = 'status';
+                break;
+            case 'updatedAt':
+                actualSortField = 'updatedAt';
+                break;
+            case 'createdAt':
+                actualSortField = 'createdAt';
+                break;
+            default:
+                actualSortField = 'updatedAt';
+        }
+
+        // Create sort object - PRIORITIZE updatedAt for latest data first
+        const sortObj = {};
+
+        // Always sort by updatedAt first (latest modifications first)
+        sortObj['updatedAt'] = sortOrder === 'asc' ? 1 : -1;
+
+        // If user selected a different field, add it as secondary sort
+        if (actualSortField !== 'updatedAt') {
+            sortObj[actualSortField] = sortOrder === 'asc' ? 1 : -1;
+        }
+
+        // Add createdAt as final fallback
+        sortObj['createdAt'] = sortOrder === 'asc' ? 1 : -1;
+
+        console.log('Sort object:', sortObj);
+        pipeline.push({ $sort: sortObj });
+
+        // Get total count for pagination (before skip/limit)
         const countPipeline = [...pipeline];
         countPipeline.push({ $count: "total" });
         const countResult = await Deposit.aggregate(countPipeline);
         const total = countResult.length > 0 ? countResult[0].total : 0;
-
-        // Add sort
-        const sortObj = {};
-        sortObj[sortField] = sortOrder === 'asc' ? 1 : -1;
-        pipeline.push({ $sort: sortObj });
 
         // Add pagination
         const pageNumber = parseInt(page);
@@ -155,36 +194,56 @@ exports.getDeposits = async (req, res) => {
                 id: "$_id",
                 user: {
                     name: { $concat: ["$userData.firstname", " ", "$userData.lastname"] },
-                    email: "$userData.email",
-                    // avatar: { $literal: "/placeholder.svg" }
+                    email: "$userData.email"
                 },
                 accountNumber: "$accountData.mt5Account",
                 amount: 1,
                 planType: "$accountData.accountType",
                 paymentMethod: "$paymentType",
                 bonus: { $ifNull: ["$bonus", 0] },
-                requestedOn: { $ifNull: ["$transactionDate", "$createdAt"] },
+                requestedOn: {
+                    $ifNull: [
+                        "$transactionDate",
+                        "$createdAt"
+                    ]
+                },
                 approvedOn: "$approvedDate",
                 rejectedOn: "$rejectedDate",
                 status: "$status",
                 remarks: { $ifNull: ["$remarks", "$notes"] },
-                proofOfPayment: 1
+                proofOfPayment: 1,
+                // Keep raw dates for debugging
+                rawTransactionDate: "$transactionDate",
+                rawCreatedAt: "$createdAt",
+                rawUpdatedAt: "$updatedAt"
             }
         });
 
         // Execute aggregation
+        console.log('Final pipeline stages:', pipeline.length);
+        console.log('Sorting by:', sortObj);
+
         const deposits = await Deposit.aggregate(pipeline);
+
+        // Log first few results to verify sorting
+        if (deposits.length > 0) {
+            console.log('First deposit updatedAt:', deposits[0].rawUpdatedAt);
+            console.log('Second deposit updatedAt:', deposits[1]?.rawUpdatedAt);
+        }
 
         return res.status(200).json({
             success: true,
             count: deposits.length,
             total: total,
             pages: Math.ceil(total / pageSize),
+            currentPage: pageNumber,
+            hasNextPage: pageNumber < Math.ceil(total / pageSize),
+            hasPrevPage: pageNumber > 1,
             data: deposits
         });
 
     } catch (error) {
-        console.error(error);
+        console.error('Error in getDeposits:', error);
         return res.status(500).json({
             success: false,
             message: 'Server Error'

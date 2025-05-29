@@ -1,6 +1,57 @@
 // controllers/transferController.js
 const Transfer = require('../../models/client/Transfer');
 const Account = require('../../models/client/Account');
+const axios = require('axios');
+
+// MT5 API Configuration
+const MT5_API_BASE_URL = 'https://api.infoapi.biz/api/mt5';
+const MANAGER_INDEX = 2; // You may want to move this to config
+
+// Helper function to make MT5 withdrawal
+const makeWithdrawal = async (mt5Account, amount, comment = 'Transfer withdrawal') => {
+    try {
+        const response = await axios.get(`${MT5_API_BASE_URL}/MakeWithdrawBalance`, {
+            params: {
+                Manager_Index: MANAGER_INDEX,
+                MT5Account: mt5Account,
+                Amount: amount,
+                Comment: comment
+            },
+            timeout: 30000 // 30 seconds timeout
+        });
+
+        if (response.data.error || !response.data.Result) {
+            throw new Error(response.data.message || 'Withdrawal failed');
+        }
+
+        return response.data;
+    } catch (error) {
+        throw new Error(`MT5 Withdrawal failed: ${error.message}`);
+    }
+};
+
+// Helper function to make MT5 deposit
+const makeDeposit = async (mt5Account, amount, comment = 'Transfer deposit') => {
+    try {
+        const response = await axios.get(`${MT5_API_BASE_URL}/MakeDepositBalance`, {
+            params: {
+                Manager_Index: MANAGER_INDEX,
+                MT5Account: mt5Account,
+                Amount: amount,
+                Comment: comment
+            },
+            timeout: 30000 // 30 seconds timeout
+        });
+
+        if (response.data.error || !response.data.Result) {
+            throw new Error(response.data.message || 'Deposit failed');
+        }
+
+        return response.data;
+    } catch (error) {
+        throw new Error(`MT5 Deposit failed: ${error.message}`);
+    }
+};
 
 // Get all transfers for a user or all transfers for admin
 exports.getTransfers = async (req, res) => {
@@ -36,7 +87,7 @@ exports.getTransfers = async (req, res) => {
     }
 };
 
-// Create new transfer
+// Create new transfer with MT5 API integration
 exports.createTransfer = async (req, res) => {
     try {
         const { fromAccountId, toAccountId, amount } = req.body;
@@ -89,32 +140,146 @@ exports.createTransfer = async (req, res) => {
             });
         }
 
-        // Perform the transfer (update account balances)
-        fromAccount.balance -= parseFloat(amount);
-        toAccount.balance += parseFloat(amount);
+        // Validate MT5 accounts
+        if (!fromAccount.mt5Account || !toAccount.mt5Account) {
+            return res.status(400).json({
+                success: false,
+                message: 'MT5 account information is missing'
+            });
+        }
 
-        // Update equity as well
-        fromAccount.equity -= parseFloat(amount);
-        toAccount.equity += parseFloat(amount);
+        let withdrawalResult = null;
+        let depositResult = null;
+        let transferRecord = null;
 
-        await fromAccount.save();
-        await toAccount.save();
+        try {
+            // Step 1: Execute withdrawal from source MT5 account
+            console.log(`Executing withdrawal from MT5 account: ${fromAccount.mt5Account}, Amount: ${amount}`);
+            withdrawalResult = await makeWithdrawal(
+                fromAccount.mt5Account,
+                amount,
+                `Transfer to ${toAccount.mt5Account}`
+            );
 
-        // Create transfer record
-        const transfer = await Transfer.create({
-            user: req.user.id,
-            fromAccount: fromAccountId,
-            toAccount: toAccountId,
-            amount,
-            status: 'Completed'
-        });
+            console.log('Withdrawal successful:', withdrawalResult);
 
-        res.status(201).json({
-            success: true,
-            data: transfer,
-            message: 'Funds transferred successfully'
-        });
+            // Step 2: Execute deposit to destination MT5 account
+            console.log(`Executing deposit to MT5 account: ${toAccount.mt5Account}, Amount: ${amount}`);
+            depositResult = await makeDeposit(
+                toAccount.mt5Account,
+                amount,
+                `Transfer from ${fromAccount.mt5Account}`
+            );
+
+            console.log('Deposit successful:', depositResult);
+
+            // Step 3: Update local database balances
+            fromAccount.balance = withdrawalResult.Balance;
+            fromAccount.equity = withdrawalResult.Equity;
+            toAccount.balance = depositResult.Balance;
+            toAccount.equity = depositResult.Equity;
+
+            await fromAccount.save();
+            await toAccount.save();
+
+            // Step 4: Create transfer record in database
+            transferRecord = await Transfer.create({
+                user: req.user.id,
+                fromAccount: fromAccountId,
+                toAccount: toAccountId,
+                amount: parseFloat(amount),
+                status: 'Completed',
+                mt5WithdrawalTicket: withdrawalResult.Ticket,
+                mt5DepositTicket: depositResult.Ticket,
+                mt5WithdrawalData: {
+                    balance: withdrawalResult.Balance,
+                    equity: withdrawalResult.Equity,
+                    freeMargin: withdrawalResult.FreeMargin,
+                    message: withdrawalResult.Message
+                },
+                mt5DepositData: {
+                    balance: depositResult.Balance,
+                    equity: depositResult.Equity,
+                    freeMargin: depositResult.FreeMargin,
+                    message: depositResult.Message
+                }
+            });
+
+            // Populate the transfer record with account details for response
+            await transferRecord.populate([
+                { path: 'fromAccount', select: 'mt5Account accountType balance equity' },
+                { path: 'toAccount', select: 'mt5Account accountType balance equity' }
+            ]);
+
+            res.status(201).json({
+                success: true,
+                data: transferRecord,
+                message: 'Funds transferred successfully',
+                mt5Data: {
+                    withdrawal: {
+                        ticket: withdrawalResult.Ticket,
+                        newBalance: withdrawalResult.Balance
+                    },
+                    deposit: {
+                        ticket: depositResult.Ticket,
+                        newBalance: depositResult.Balance
+                    }
+                }
+            });
+
+        } catch (mt5Error) {
+            console.error('MT5 API Error:', mt5Error.message);
+
+            // If withdrawal succeeded but deposit failed, we need to handle this carefully
+            if (withdrawalResult && !depositResult) {
+                console.error('Critical: Withdrawal succeeded but deposit failed. Manual intervention required.');
+
+                // Create a failed transfer record for tracking
+                transferRecord = await Transfer.create({
+                    user: req.user.id,
+                    fromAccount: fromAccountId,
+                    toAccount: toAccountId,
+                    amount: parseFloat(amount),
+                    status: 'Failed',
+                    errorMessage: `Deposit failed after successful withdrawal. Withdrawal Ticket: ${withdrawalResult.Ticket}`,
+                    mt5WithdrawalTicket: withdrawalResult.Ticket,
+                    mt5WithdrawalData: {
+                        balance: withdrawalResult.Balance,
+                        equity: withdrawalResult.Equity,
+                        freeMargin: withdrawalResult.FreeMargin,
+                        message: withdrawalResult.Message
+                    }
+                });
+
+                return res.status(500).json({
+                    success: false,
+                    message: 'Transfer partially completed. Withdrawal successful but deposit failed. Please contact support immediately.',
+                    error: mt5Error.message,
+                    withdrawalTicket: withdrawalResult.Ticket,
+                    transferId: transferRecord._id
+                });
+            }
+
+            // If withdrawal failed, create a failed transfer record
+            transferRecord = await Transfer.create({
+                user: req.user.id,
+                fromAccount: fromAccountId,
+                toAccount: toAccountId,
+                amount: parseFloat(amount),
+                status: 'Failed',
+                errorMessage: mt5Error.message
+            });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Transfer failed',
+                error: mt5Error.message,
+                transferId: transferRecord._id
+            });
+        }
+
     } catch (error) {
+        console.error('Transfer Controller Error:', error.message);
         res.status(500).json({
             success: false,
             message: 'Failed to process transfer',
