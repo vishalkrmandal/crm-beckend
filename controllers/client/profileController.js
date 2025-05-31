@@ -52,8 +52,6 @@ exports.uploadDocuments = upload.fields([
 // Get user profile
 exports.getProfile = async (req, res) => {
     try {
-
-
         // console.log('req:', req.user.id)
         // Find profile for the authenticated user
         const profile = await Profile.findOne({ user: req.user.id });
