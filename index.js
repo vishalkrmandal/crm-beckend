@@ -32,6 +32,10 @@ const adminClientRoutes = require('./routes/adminClientRoutes');
 const ibClientConfigurationRoutes = require('./routes/client/ibClientConfigurationRoutes');
 const ibWithdrawalRoutes = require('./routes/client/ibwithdrawalRoutes');
 const tradingRoutes = require('./routes/client/tradingRoutes');
+const adminDashboardRoutes = require('./routes/admin/adminDashboardRoutes');
+const clientDashboardRoutes = require('./routes/client/clientDashboardRoutes');
+
+
 
 // Connect to MongoDB
 connectDB();
@@ -70,7 +74,7 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/admin/clients', adminClientRoutes);
 app.use('/api/admin/transactions', adminTransactionRoutes);
 app.use('/api/ib-configurations', ibConfigurationRoutes);
-
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // Client Routes
 app.use('/api/accounts', accountRoutes);
@@ -82,6 +86,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/ibclients/withdrawals', ibWithdrawalRoutes);
 app.use('/api/ibclients/ib-configurations', ibClientConfigurationRoutes);
 app.use('/api/trading', tradingRoutes);
+app.use('/api/client/dashboard', clientDashboardRoutes);
+
 
 // Ticket routes
 app.use('/api/tickets', ticketRoutes);
