@@ -10,6 +10,10 @@ const connectDB = require('./config/db');
 const config = require('./config/config');
 const setupWebSocket = require('./utils/socketServer');
 
+// Import the trade sync service
+const tradeSyncService = require('./services/tradeSyncService');
+
+
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const leverageRoutes = require('./routes/leverageRoutes');
@@ -35,6 +39,8 @@ const tradingRoutes = require('./routes/client/tradingRoutes');
 const adminDashboardRoutes = require('./routes/admin/adminDashboardRoutes');
 const clientDashboardRoutes = require('./routes/client/clientDashboardRoutes');
 
+// Import the new commission routes
+const commissionRoutes = require('./routes/client/commissionRoutes');
 
 
 // Connect to MongoDB
@@ -46,6 +52,7 @@ const server = http.createServer(app);
 
 // Set up WebSocket server
 const io = setupWebSocket(server);
+
 
 // Middleware
 app.use(express.json());
@@ -89,8 +96,12 @@ app.use('/api/trading', tradingRoutes);
 app.use('/api/client/dashboard', clientDashboardRoutes);
 
 
+// Commission Routes - NEW
+app.use('/api/ibclients/commission', commissionRoutes);
+
 // Ticket routes
 app.use('/api/tickets', ticketRoutes);
+
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -102,9 +113,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start the server
+
+// Start the server and auto sync service
 const PORT = config.PORT;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`
 🚀 Server is running successfully!
 📍 Environment: ${process.env.NODE_ENV || 'development'}
@@ -112,5 +124,13 @@ server.listen(PORT, () => {
 📊 Database: ${process.env.MONGO_URI ? '✅ Connected' : '❌ Not configured'}
 🔗 Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}
 ⏰ Started at: ${new Date().toLocaleString()}
-  `);
+ `);
+
+  // Start the automated trade sync service
+  try {
+    await tradeSyncService.startAutoSync();
+    console.log('🔄 Automated trade sync service started successfully!');
+  } catch (error) {
+    console.error('❌ Failed to start trade sync service:', error);
+  }
 });

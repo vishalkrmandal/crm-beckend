@@ -17,10 +17,6 @@ const IBClientConfigurationSchema = new mongoose.Schema({
         type: String,
         default: null
     },
-    commissionRate: {
-        type: Number,
-        default: 0.1 // Default commission rate (10%)
-    },
     status: {
         type: String,
         enum: ['pending', 'active', 'inactive'],
@@ -40,10 +36,9 @@ const IBClientConfigurationSchema = new mongoose.Schema({
 });
 
 // Add indexes for better performance
-IBClientConfigurationSchema.index({ userId: 1 });
-IBClientConfigurationSchema.index({ referralCode: 1 });
 IBClientConfigurationSchema.index({ parent: 1 });
 IBClientConfigurationSchema.index({ status: 1 });
+IBClientConfigurationSchema.index({ level: 1 });
 
 const IBClientConfiguration = mongoose.model('IBClientConfiguration', IBClientConfigurationSchema);
 

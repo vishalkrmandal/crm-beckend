@@ -1,218 +1,340 @@
-// backend/controllers/commissionController.js
-const IBClientConfiguration = require('../models/client/IBClientConfiguration');
+// Backend/controllers/client/commissionController.js
 const IBCommission = require('../models/IBCommission');
-const IBConfiguration = require('../models/admin/IBAdminConfiguration');
-const Group = require('../models/Group');
+const IBClientConfiguration = require('../models/client/IBClientConfiguration');
+const IBClosedTrades = require('../models/IBClosedTrade');
 const User = require('../models/User');
+const Account = require('../models/client/Account');
 
-// @desc    Calculate and distribute IB commissions based on bonusPerLot
-// @route   Internal function called after transactions
-// @access  Internal
-exports.calculateAndDistributeCommission = async (transaction) => {
+// @desc    Get trade commissions for the logged-in user
+// @route   GET /api/ibclients/commission/trade-commissions
+// @access  Private (Client)
+exports.getTradeCommissions = async (req, res) => {
     try {
-        // Verify the transaction exists and is valid
-        if (!transaction || !transaction.userId || !transaction.groupId || !transaction.lotSize) {
-            console.error('Invalid transaction for commission calculation');
-            return false;
+        const userId = req.user.id;
+
+        // Find user's IB configuration
+        const ibConfig = await IBClientConfiguration.findOne({ userId });
+
+        if (!ibConfig) {
+            return res.status(404).json({
+                success: false,
+                message: 'No IB configuration found. Please set up your referral system first.'
+            });
         }
 
-        // Get the user who made the transaction
-        const user = await User.findById(transaction.userId);
+        // Get all commissions where this user is the IB (earning commissions)
+        const commissions = await IBCommission.find({ ibUserId: userId })
+            .populate('clientId', 'firstname lastname email')
+            .populate('tradeId')
+            .sort({ createdAt: -1 })
+            .lean();
 
-        if (!user || !user.referredBy) {
-            // No referral, no commission to distribute
-            return true;
-        }
+        // Transform data for frontend
+        const trades = commissions.map(commission => ({
+            acNo: commission.clientMT5Account,
+            openTime: commission.openTime,
+            closeTime: commission.closeTime,
+            openPrice: commission.openPrice.toFixed(5),
+            closePrice: commission.closePrice.toFixed(5),
+            symbol: commission.symbol,
+            profit: commission.profit,
+            volume: commission.volume,
+            rebate: commission.commissionAmount,
+            status: commission.status
+        }));
 
-        // Find the direct referrer's IB configuration
-        let currentIB = await IBClientConfiguration.findOne({
-            referralCode: user.referredBy,
-            status: 'active'
+        // Calculate totals
+        const totals = {
+            totalProfit: commissions.reduce((sum, c) => sum + c.profit, 0),
+            totalVolume: commissions.reduce((sum, c) => sum + c.volume, 0),
+            totalRebate: commissions.reduce((sum, c) => sum + c.commissionAmount, 0)
+        };
+
+        res.status(200).json({
+            success: true,
+            trades,
+            totals
         });
 
-        if (!currentIB) {
-            console.error('Referrer IB not found for code:', user.referredBy);
-            return false;
-        }
-
-        // Get commission configuration from admin settings for this group and levels
-        const adminConfigs = await IBConfiguration.find({ groupId: transaction.groupId })
-            .sort({ level: 1 })
-            .limit(10); // Maximum 10 levels
-
-        if (adminConfigs.length === 0) {
-            console.error('No commission configuration found for group:', transaction.groupId);
-            return false;
-        }
-
-        // Process up to the configured levels or until no more upline
-        let level = 1;
-        let processedIBs = new Set(); // To avoid duplicate processing
-
-        while (currentIB && level <= adminConfigs.length) {
-            const ibId = currentIB._id.toString();
-
-            // Avoid duplicate processing in case of circular references
-            if (processedIBs.has(ibId)) {
-                break;
-            }
-
-            processedIBs.add(ibId);
-
-            // Get the bonus configuration for this level
-            const levelConfig = adminConfigs.find(config => config.level === level);
-
-            if (!levelConfig) {
-                console.log(`No commission config found for level ${level}`);
-                level++;
-                // Move to next level in hierarchy
-                if (currentIB.parent) {
-                    currentIB = await IBClientConfiguration.findById(currentIB.parent);
-                } else {
-                    break;
-                }
-                continue;
-            }
-
-            // Calculate commission: bonusPerLot * lotSize
-            const commissionAmount = levelConfig.bonusPerLot * transaction.lotSize;
-            const baseAmount = transaction.amount || 0;
-
-            if (commissionAmount > 0) {
-                // Create commission record
-                await IBCommission.create({
-                    ibConfigurationId: currentIB._id,
-                    userId: currentIB.userId,
-                    clientId: transaction.userId,
-                    transactionId: transaction._id,
-                    level,
-                    groupId: transaction.groupId,
-                    lotSize: transaction.lotSize,
-                    bonusPerLot: levelConfig.bonusPerLot,
-                    baseAmount,
-                    commissionAmount,
-                    status: 'pending' // Pending until processed by admin
-                });
-
-                console.log(`Commission created: Level ${level}, Amount: ${commissionAmount}, IB: ${currentIB.referralCode}`);
-            }
-
-            // Move up to the next level in the hierarchy
-            level++;
-            if (currentIB.parent) {
-                currentIB = await IBClientConfiguration.findById(currentIB.parent);
-            } else {
-                break;
-            }
-        }
-
-        return true;
     } catch (error) {
-        console.error('Commission calculation error:', error);
-        return false;
+        console.error('Get Trade Commissions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred while fetching trade commissions.'
+        });
     }
 };
 
-// @desc    Process commission payments (Admin function)
-// @route   POST /api/admin/commissions/process
-// @access  Private (Admin)
-exports.processCommissionPayments = async (req, res) => {
+// @desc    Get commission summary for dashboard
+// @route   GET /api/ibclients/commission/summary
+// @access  Private (Client)
+exports.getCommissionSummary = async (req, res) => {
     try {
-        const { commissionIds, status } = req.body;
+        const userId = req.user.id;
+        const { period = '30' } = req.query; // Default to 30 days
 
-        if (!commissionIds || !Array.isArray(commissionIds) || !status) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please provide commission IDs and status'
-            });
-        }
+        // Calculate date range
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(period));
 
-        if (!['paid', 'cancelled'].includes(status)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Status must be either "paid" or "cancelled"'
-            });
-        }
+        // Get commissions for the period
+        const commissions = await IBCommission.find({
+            ibUserId: userId,
+            createdAt: { $gte: startDate, $lte: endDate }
+        });
 
-        // Update commission statuses
-        const result = await IBCommission.updateMany(
+        // Calculate summary statistics
+        const summary = {
+            totalCommission: commissions.reduce((sum, c) => sum + c.commissionAmount, 0),
+            totalTrades: commissions.length,
+            totalVolume: commissions.reduce((sum, c) => sum + c.volume, 0),
+            totalProfit: commissions.reduce((sum, c) => sum + c.profit, 0),
+            avgCommissionPerTrade: commissions.length > 0
+                ? commissions.reduce((sum, c) => sum + c.commissionAmount, 0) / commissions.length
+                : 0,
+            period: parseInt(period)
+        };
+
+        res.status(200).json({
+            success: true,
+            summary
+        });
+
+    } catch (error) {
+        console.error('Get Commission Summary error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred while fetching commission summary.'
+        });
+    }
+};
+
+// @desc    Get detailed commission breakdown by level
+// @route   GET /api/ibclients/commission/breakdown
+// @access  Private (Client)
+exports.getCommissionBreakdown = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { period = '30' } = req.query;
+
+        // Calculate date range
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(period));
+
+        // Get commissions grouped by level
+        const breakdown = await IBCommission.aggregate([
             {
-                _id: { $in: commissionIds },
-                status: 'pending'
+                $match: {
+                    ibUserId: userId,
+                    createdAt: { $gte: startDate, $lte: endDate }
+                }
             },
             {
-                status,
-                updatedAt: Date.now()
+                $group: {
+                    _id: '$level',
+                    totalCommission: { $sum: '$commissionAmount' },
+                    totalTrades: { $sum: 1 },
+                    totalVolume: { $sum: '$volume' },
+                    avgCommission: { $avg: '$commissionAmount' }
+                }
+            },
+            {
+                $sort: { _id: 1 }
             }
-        );
+        ]);
 
         res.status(200).json({
             success: true,
-            message: `${result.modifiedCount} commissions updated to ${status}`,
-            modifiedCount: result.modifiedCount
+            breakdown
         });
+
     } catch (error) {
-        console.error('Process commission payments error:', error);
+        console.error('Get Commission Breakdown error:', error);
         res.status(500).json({
             success: false,
-            message: 'An error occurred while processing commission payments.'
+            message: 'An error occurred while fetching commission breakdown.'
         });
     }
 };
 
-// @desc    Get pending commissions for admin review
-// @route   GET /api/admin/commissions/pending
-// @access  Private (Admin)
-exports.getPendingCommissions = async (req, res) => {
+// @desc    Get commission details for a specific partner/client
+// @route   GET /api/ibclients/commission/partner/:partnerId
+// @access  Private (Client)
+exports.getPartnerCommissions = async (req, res) => {
     try {
-        const { page = 1, limit = 20 } = req.query;
+        const userId = req.user.id;
+        const partnerId = req.params.partnerId;
 
-        const commissions = await IBCommission.find({ status: 'pending' })
-            .populate('userId', 'firstname lastname email')
+        // Verify that the partner is actually a downline of the current user
+        const partnerIBConfig = await IBClientConfiguration.findOne({ userId: partnerId });
+
+        if (!partnerIBConfig) {
+            return res.status(404).json({
+                success: false,
+                message: 'Partner not found.'
+            });
+        }
+
+        // Get commissions earned from this specific partner
+        const commissions = await IBCommission.find({
+            ibUserId: userId,
+            clientId: partnerId
+        })
             .populate('clientId', 'firstname lastname email')
-            .populate('groupId', 'name value')
-            .sort({ createdAt: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit);
+            .sort({ createdAt: -1 });
 
-        const total = await IBCommission.countDocuments({ status: 'pending' });
+        // Get partner details
+        const partner = await User.findById(partnerId, 'firstname lastname email');
+        const partnerAccounts = await Account.find({ user: partnerId });
+
+        // Transform data
+        const trades = commissions.map(commission => ({
+            acNo: commission.clientMT5Account,
+            openTime: commission.openTime,
+            closeTime: commission.closeTime,
+            openPrice: commission.openPrice.toFixed(5),
+            closePrice: commission.closePrice.toFixed(5),
+            symbol: commission.symbol,
+            profit: commission.profit,
+            volume: commission.volume,
+            rebate: commission.commissionAmount,
+            status: commission.status,
+            level: commission.level
+        }));
+
+        // Calculate totals
+        const totals = {
+            totalProfit: commissions.reduce((sum, c) => sum + c.profit, 0),
+            totalVolume: commissions.reduce((sum, c) => sum + c.volume, 0),
+            totalRebate: commissions.reduce((sum, c) => sum + c.commissionAmount, 0)
+        };
 
         res.status(200).json({
             success: true,
-            commissions,
-            totalPages: Math.ceil(total / limit),
-            currentPage: page,
-            total
+            partner: {
+                id: partner._id,
+                name: `${partner.firstname} ${partner.lastname}`,
+                email: partner.email,
+                accounts: partnerAccounts.map(acc => acc.mt5Account)
+            },
+            trades,
+            totals
         });
+
     } catch (error) {
-        console.error('Get pending commissions error:', error);
+        console.error('Get Partner Commissions error:', error);
         res.status(500).json({
             success: false,
-            message: 'An error occurred while fetching pending commissions.'
+            message: 'An error occurred while fetching partner commissions.'
         });
     }
 };
 
-// Example usage in transaction controller
-// This should be called after a successful transaction
-/*
-const { calculateAndDistributeCommission } = require('./commissionController');
+// @desc    Get enhanced partners list with commission data
+// @route   GET /api/ibclients/commission/partners
+// @access  Private (Client)
+exports.getPartnersWithCommissions = async (req, res) => {
+    try {
+        const userId = req.user.id;
 
-// After creating a transaction
-const transaction = {
-    _id: newTransaction._id,
-    userId: userId,
-    groupId: groupId,
-    lotSize: lotSize,
-    amount: amount
+        // Find user's IB configuration
+        const ibConfig = await IBClientConfiguration.findOne({ userId });
+
+        if (!ibConfig) {
+            return res.status(404).json({
+                success: false,
+                message: 'No IB configuration found.'
+            });
+        }
+
+        // Get all downline partners
+        const partners = await this.getAllDownlinePartners(ibConfig._id, ibConfig.level);
+
+        // Enhanced partners with commission data
+        const enhancedPartners = await Promise.all(partners.map(async (partner) => {
+            try {
+                // Get commissions earned from this partner
+                const commissions = await IBCommission.find({
+                    ibUserId: userId,
+                    clientId: partner.userId._id
+                });
+
+                const totalEarned = commissions.reduce((sum, c) => sum + c.commissionAmount, 0);
+                const totalVolume = commissions.reduce((sum, c) => sum + c.volume, 0);
+                const totalTrades = commissions.length;
+
+                return {
+                    _id: partner._id,
+                    userId: partner.userId,
+                    referralCode: partner.referralCode,
+                    level: partner.level,
+                    totalVolume,
+                    totalEarned,
+                    totalTrades,
+                    createdAt: partner.createdAt
+                };
+            } catch (error) {
+                console.error('Error processing partner:', partner._id, error);
+                return {
+                    _id: partner._id,
+                    userId: partner.userId,
+                    referralCode: partner.referralCode,
+                    level: partner.level,
+                    totalVolume: 0,
+                    totalEarned: 0,
+                    totalTrades: 0,
+                    createdAt: partner.createdAt
+                };
+            }
+        }));
+
+        res.status(200).json({
+            success: true,
+            partners: enhancedPartners
+        });
+
+    } catch (error) {
+        console.error('Get Partners With Commissions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred while fetching partners with commissions.'
+        });
+    }
 };
 
-// Calculate and distribute commissions
-await calculateAndDistributeCommission(transaction);
-*/
+// Helper function to get all downline partners recursively
+exports.getAllDownlinePartners = async (ibConfigId, currentUserLevel = null) => {
+    try {
+        const directPartners = await IBClientConfiguration.find({
+            parent: ibConfigId
+        }).populate('userId', 'firstname lastname email');
 
-module.exports = {
-    calculateAndDistributeCommission: exports.calculateAndDistributeCommission,
-    processCommissionPayments: exports.processCommissionPayments,
-    getPendingCommissions: exports.getPendingCommissions
+        let allPartners = [];
+
+        // Process direct partners
+        for (const partner of directPartners) {
+            // If currentUserLevel is provided, normalize the level for display
+            let displayLevel = partner.level;
+            if (currentUserLevel !== null) {
+                displayLevel = partner.level - currentUserLevel;
+            }
+
+            // Add partner with normalized level
+            allPartners.push({
+                ...partner.toObject(),
+                level: displayLevel
+            });
+
+            // Recursively get partners of each direct partner
+            const subPartners = await this.getAllDownlinePartners(partner._id, currentUserLevel);
+            allPartners = allPartners.concat(subPartners);
+        }
+
+        return allPartners;
+    } catch (error) {
+        console.error('Error getting downline partners:', error);
+        return [];
+    }
 };

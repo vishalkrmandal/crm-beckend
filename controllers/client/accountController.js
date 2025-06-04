@@ -62,7 +62,7 @@ exports.createAccount = async (req, res) => {
 
         // Create payload for external API
         const externalAPIPayload = {
-            Manager_Index: "2",
+            Manager_Index: "1",
             MT5Account: mt5Account,
             Name: name,
             Leverage: leverage,
@@ -127,7 +127,7 @@ exports.createAccount = async (req, res) => {
             balance: 0,
             equity: 0,
             status: true,
-            managerIndex: "2"
+            managerIndex: "1"
         });
 
         res.status(201).json({

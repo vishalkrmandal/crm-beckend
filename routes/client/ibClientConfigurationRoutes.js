@@ -7,7 +7,6 @@ const {
     getPartnersList,
     verifyReferralCode,
     getIBTree,
-    getTradeCommissions
 } = require('../../controllers/client/ibClientConfigurationController');
 const { protect, authorize } = require('../../middlewares/auth');
 
@@ -22,6 +21,5 @@ router.get('/my-code', protect, authorize('client'), getMyIBConfiguration);
 router.get('/dashboard', protect, authorize('client'), getIBDashboardSummary);
 router.get('/partners', protect, authorize('client'), getPartnersList);
 router.get('/tree', protect, authorize('client'), getIBTree);
-router.get('/trade-commissions', protect, authorize('client'), getTradeCommissions);
 
 module.exports = router;
