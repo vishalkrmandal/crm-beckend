@@ -317,7 +317,7 @@ exports.getPartnersList = async (req, res) => {
                 // Get total volume from this partner's transactions
                 const commissions = await IBCommission.aggregate([
                     { $match: { clientId: partner.userId._id } },
-                    { $group: { _id: null, total: { $sum: "$baseAmount" } } }
+                    { $group: { _id: null, total: { $sum: "$volume" } } }
                 ]);
 
                 const totalVolume = commissions.length > 0 ? commissions[0].total : 0;

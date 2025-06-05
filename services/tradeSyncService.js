@@ -1,10 +1,10 @@
-// Backend/services/tradeSyncService.js - Production version with configurable time range
+// Backend/services/tradeSyncService.js - Updated with balance management
 const axios = require('axios');
-const IBClosedTrades = require('../models/IBClosedTrade'); // Fixed: was IBClosedTrade
+const IBClosedTrades = require('../models/IBClosedTrade');
 const Account = require('../models/client/Account');
 const IBCommission = require('../models/IBCommission');
 const IBClientConfiguration = require('../models/client/IBClientConfiguration');
-const IBAdminConfiguration = require('../models/admin/IBAdminConfiguration'); // Fixed: was admin/IBAdminConfiguration
+const IBAdminConfiguration = require('../models/admin/IBAdminConfiguration');
 const Group = require('../models/Group');
 const User = require('../models/User');
 
@@ -12,27 +12,24 @@ class TradeSyncService {
     constructor() {
         this.isProcessing = false;
         this.lastSyncTime = new Date();
-        this.managerIndexes = ['1']; // Add all your manager indexes
+        this.managerIndexes = ['1'];
         this.apiBaseUrl = 'https://api.infoapi.biz/api/mt5';
 
-        // Configuration for different sync modes
         this.syncModes = {
-            INITIAL_SETUP: 365, // days - for initial setup to get all historical trades
-            REGULAR_SYNC: 1,    // days - for regular ongoing sync
-            MANUAL_RANGE: null  // will be set manually if needed
+            INITIAL_SETUP: 365,
+            REGULAR_SYNC: 1,
+            MANUAL_RANGE: null
         };
 
-        this.currentSyncMode = 'INITIAL_SETUP'; // Change this after initial setup
+        this.currentSyncMode = 'INITIAL_SETUP';
     }
 
     async startAutoSync() {
         console.log('🔄 Starting automated trade sync service...');
         console.log(`📅 Current sync mode: ${this.currentSyncMode}`);
 
-        // Initial sync
         await this.syncTrades();
 
-        // Schedule every 10 seconds
         setInterval(async () => {
             try {
                 await this.syncTrades();
@@ -42,7 +39,6 @@ class TradeSyncService {
         }, 10000);
     }
 
-    // Method to change sync mode
     setSyncMode(mode, customDays = null) {
         this.currentSyncMode = mode;
         if (mode === 'MANUAL_RANGE' && customDays) {
@@ -51,7 +47,6 @@ class TradeSyncService {
         console.log(`🔧 Sync mode changed to: ${mode}`);
     }
 
-    // Method to switch to regular sync after initial setup
     switchToRegularSync() {
         this.currentSyncMode = 'REGULAR_SYNC';
         console.log('🔄 Switched to regular sync mode (24 hours)');
@@ -70,7 +65,6 @@ class TradeSyncService {
             console.log('🔄 Starting trade sync at:', new Date().toISOString());
             console.log(`📅 Sync mode: ${this.currentSyncMode}`);
 
-            // Get all valid MT5 accounts from our database
             const accounts = await Account.find({}).populate('user', 'firstname lastname email');
             const validMT5Accounts = accounts.map(acc => acc.mt5Account);
 
@@ -81,13 +75,11 @@ class TradeSyncService {
 
             console.log(`📊 Found ${validMT5Accounts.length} valid MT5 accounts`);
 
-            // Fetch trades from external API for each manager
             let allNewTrades = [];
 
             for (const managerIndex of this.managerIndexes) {
                 const trades = await this.fetchTradesFromAPI(managerIndex);
                 if (trades && trades.length > 0) {
-                    // Filter trades for valid accounts only
                     const validTrades = trades.filter(trade =>
                         validMT5Accounts.includes(trade.MT5Account.toString())
                     );
@@ -102,16 +94,12 @@ class TradeSyncService {
 
             console.log(`📈 Found ${allNewTrades.length} potential new trades`);
 
-            // Process and store new trades
             const storedTrades = await this.processAndStoreTrades(allNewTrades);
 
             if (storedTrades.length > 0) {
                 console.log(`💾 Stored ${storedTrades.length} new trades`);
-
-                // Calculate commissions for new trades
                 await this.calculateCommissions(storedTrades, batchId);
 
-                // After successful initial setup, consider switching to regular sync
                 if (this.currentSyncMode === 'INITIAL_SETUP' && storedTrades.length < 100) {
                     console.log('💡 Consider switching to regular sync mode with: tradeSyncService.switchToRegularSync()');
                 }
@@ -129,7 +117,6 @@ class TradeSyncService {
 
     async fetchTradesFromAPI(managerIndex) {
         try {
-            // Calculate time range based on sync mode
             const endTime = new Date();
             let daysToFetch;
 
@@ -144,7 +131,7 @@ class TradeSyncService {
                     daysToFetch = this.syncModes.MANUAL_RANGE;
                     break;
                 default:
-                    daysToFetch = 1; // fallback
+                    daysToFetch = 1;
             }
 
             const startTime = new Date(endTime.getTime() - (daysToFetch * 24 * 60 * 60 * 1000));
@@ -164,7 +151,7 @@ class TradeSyncService {
 
             const response = await axios.get(url, {
                 params,
-                timeout: 30000 // 30 second timeout
+                timeout: 30000
             });
 
             if (response.data && Array.isArray(response.data)) {
@@ -190,16 +177,14 @@ class TradeSyncService {
 
         for (const apiTrade of apiTrades) {
             try {
-                // Check if trade already exists
                 const existingTrade = await IBClosedTrades.findOne({
                     positionId: apiTrade.PositionId.toString()
                 });
 
                 if (existingTrade) {
-                    continue; // Skip already processed trade
+                    continue;
                 }
 
-                // Convert API data to our schema
                 const tradeData = {
                     mt5Account: apiTrade.MT5Account.toString(),
                     positionId: apiTrade.PositionId.toString(),
@@ -225,7 +210,6 @@ class TradeSyncService {
                     commissionProcessed: false
                 };
 
-                // Save to database
                 const savedTrade = await IBClosedTrades.create(tradeData);
                 storedTrades.push(savedTrade);
 
@@ -240,7 +224,6 @@ class TradeSyncService {
     }
 
     parseAPIDate(dateString) {
-        // Convert "2025.05.31 14:00:37" to JavaScript Date
         const [datePart, timePart] = dateString.split(' ');
         const [year, month, day] = datePart.split('.');
         const formattedDate = `${year}-${month}-${day} ${timePart}`;
@@ -250,12 +233,24 @@ class TradeSyncService {
     async calculateCommissions(trades, batchId) {
         console.log(`💰 Calculating commissions for ${trades.length} trades...`);
 
+        const balanceUpdates = new Map(); // To batch balance updates
+
         for (const trade of trades) {
             try {
                 console.log(`🔄 Processing trade ${trade._id} for MT5 account: ${trade.mt5Account}`);
-                await this.processTradeCommissions(trade, batchId);
+                const commissions = await this.processTradeCommissions(trade, batchId);
 
-                // Mark trade as processed
+                // Collect balance updates
+                if (commissions && commissions.length > 0) {
+                    for (const commission of commissions) {
+                        const ibConfigId = commission.ibConfigurationId.toString();
+                        if (!balanceUpdates.has(ibConfigId)) {
+                            balanceUpdates.set(ibConfigId, 0);
+                        }
+                        balanceUpdates.set(ibConfigId, balanceUpdates.get(ibConfigId) + commission.commissionAmount);
+                    }
+                }
+
                 await IBClosedTrades.findByIdAndUpdate(trade._id, {
                     commissionProcessed: true,
                     processedAt: new Date()
@@ -265,60 +260,103 @@ class TradeSyncService {
                 console.error(`❌ Error calculating commission for trade ${trade._id}:`, error);
             }
         }
+
+        // Update IB balances in batch
+        await this.updateIBBalances(balanceUpdates);
+
+        // Confirm commission statuses in batch
+        await this.confirmCommissions(batchId);
+    }
+
+    async updateIBBalances(balanceUpdates) {
+        console.log(`💳 Updating IB balances for ${balanceUpdates.size} configurations...`);
+
+        for (const [ibConfigId, amount] of balanceUpdates) {
+            try {
+                const result = await IBClientConfiguration.findByIdAndUpdate(
+                    ibConfigId,
+                    { $inc: { IBbalance: amount } },
+                    { new: true }
+                );
+
+                if (result) {
+                    console.log(`💰 Added ${amount.toFixed(4)} to IB config ${ibConfigId} (New balance: ${result.IBbalance.toFixed(4)})`);
+                } else {
+                    console.error(`❌ Failed to update balance for IB config ${ibConfigId} - config not found`);
+                }
+            } catch (error) {
+                console.error(`❌ Error updating balance for ${ibConfigId}:`, error);
+            }
+        }
+    }
+
+    async confirmCommissions(batchId) {
+        try {
+            const result = await IBCommission.updateMany(
+                { batchId: batchId, status: 'pending' },
+                { status: 'confirmed' }
+            );
+            console.log(`✅ Confirmed ${result.modifiedCount} commissions for batch ${batchId}`);
+        } catch (error) {
+            console.error(`❌ Error confirming commissions for batch ${batchId}:`, error);
+        }
     }
 
     async processTradeCommissions(trade, batchId) {
-        // Find the account and user who made this trade
         const account = await Account.findOne({ mt5Account: trade.mt5Account })
             .populate('user');
 
         if (!account || !account.user) {
             console.log(`⚠️ No account/user found for MT5 account: ${trade.mt5Account}`);
-            return;
+            return [];
         }
 
         console.log(`👤 Found account for user: ${account.user.email}, group: ${account.groupName}`);
 
-        // Find the IB configuration for this user
         const clientIBConfig = await IBClientConfiguration.findOne({
             userId: account.user._id
         });
 
         if (!clientIBConfig) {
             console.log(`⚠️ No IB configuration found for user: ${account.user.email}`);
-            return;
+            return [];
         }
 
         console.log(`🔗 Found IB config for user: ${account.user.email}, level: ${clientIBConfig.level}, parent: ${clientIBConfig.parent ? 'Yes' : 'No'}`);
 
-        // Get the hierarchy chain (all parents up to root)
         const hierarchy = await this.getHierarchyChain(clientIBConfig);
 
         if (hierarchy.length === 0) {
             console.log(`⚠️ No hierarchy found for user: ${account.user.email} (this user is likely at the top level with no parents)`);
-            return;
+            return [];
         }
 
         console.log(`🔗 Processing hierarchy chain of ${hierarchy.length} levels for user: ${account.user.email}`);
 
-        // Calculate commission for each level in the hierarchy
+        const createdCommissions = [];
+
         for (let i = 0; i < hierarchy.length; i++) {
             const ibConfig = hierarchy[i];
-            const level = i + 1; // Level 1, 2, 3, etc.
+            const level = i + 1;
 
             try {
                 console.log(`💰 Creating commission for level ${level}, IB: ${ibConfig.userId.email}`);
-                await this.createCommissionRecord(
+                const commission = await this.createCommissionRecord(
                     trade,
                     account,
                     ibConfig,
                     level,
                     batchId
                 );
+                if (commission) {
+                    createdCommissions.push(commission);
+                }
             } catch (error) {
                 console.error(`❌ Error creating commission record for level ${level}:`, error);
             }
         }
+
+        return createdCommissions;
     }
 
     async getHierarchyChain(clientIBConfig) {
@@ -327,7 +365,6 @@ class TradeSyncService {
 
         console.log(`🔍 Building hierarchy chain starting from user ID: ${clientIBConfig.userId}`);
 
-        // Traverse up the hierarchy
         while (currentConfig && currentConfig.parent) {
             const parentConfig = await IBClientConfiguration.findById(currentConfig.parent)
                 .populate('userId', 'firstname lastname email');
@@ -348,7 +385,6 @@ class TradeSyncService {
 
     async createCommissionRecord(trade, account, ibConfig, level, batchId) {
         try {
-            // Check if commission record already exists for this trade + IB + level
             const existingCommission = await IBCommission.findOne({
                 tradeId: trade._id,
                 ibUserId: ibConfig.userId._id,
@@ -360,21 +396,18 @@ class TradeSyncService {
                 return existingCommission;
             }
 
-            // Get the account type/group for commission calculation
             console.log(`🔍 Looking for group with value: ${account.groupName}`);
             const group = await Group.findOne({ value: account.groupName });
 
             if (!group) {
                 console.log(`⚠️ No group found for groupName: ${account.groupName}`);
-                // List all available groups for debugging
                 const allGroups = await Group.find({}, 'name value');
                 console.log(`📋 Available groups:`, allGroups.map(g => `${g.name} (${g.value})`));
-                return;
+                return null;
             }
 
             console.log(`✅ Found group: ${group.name} (${group.value})`);
 
-            // Find the admin configuration for this group and level
             console.log(`🔍 Looking for admin config - Group ID: ${group._id}, Level: ${level}`);
             const adminConfig = await IBAdminConfiguration.findOne({
                 groupId: group._id,
@@ -383,20 +416,17 @@ class TradeSyncService {
 
             if (!adminConfig) {
                 console.log(`⚠️ No admin configuration found for group: ${group.name}, level: ${level}`);
-                // List all available admin configs for this group
                 const allAdminConfigs = await IBAdminConfiguration.find({ groupId: group._id });
                 console.log(`📋 Available admin configs for this group:`, allAdminConfigs.map(ac => `Level ${ac.level}: $${ac.bonusPerLot}/lot`));
-                return;
+                return null;
             }
 
             console.log(`✅ Found admin config: Level ${adminConfig.level}, Bonus: $${adminConfig.bonusPerLot}/lot`);
 
-            // Calculate commission amount
             const commissionAmount = adminConfig.bonusPerLot * trade.volume;
 
             console.log(`💵 Calculating commission: $${adminConfig.bonusPerLot} × ${trade.volume} lots = $${commissionAmount}`);
 
-            // Create commission record
             const commissionData = {
                 tradeId: trade._id,
                 clientId: account.user._id,
@@ -413,9 +443,9 @@ class TradeSyncService {
                 closeTime: trade.closeTime,
                 openPrice: trade.openPrice,
                 closePrice: trade.closePrice,
-                baseAmount: Math.abs(trade.profit), // Use absolute profit as base amount
+                baseAmount: Math.abs(trade.profit),
                 groupName: account.groupName,
-                status: 'confirmed',
+                status: 'pending', // Changed to pending initially
                 batchId: batchId
             };
 
@@ -426,16 +456,14 @@ class TradeSyncService {
             return commission;
 
         } catch (error) {
-            // If it's a duplicate key error, it means another process already created this commission
             if (error.code === 11000) {
                 console.log(`ℹ️ Commission already exists (duplicate prevented) for trade ${trade._id}, IB ${ibConfig.userId.email}, level ${level}`);
                 return null;
             }
-            throw error; // Re-throw other errors
+            throw error;
         }
     }
 
-    // Utility method to get sync status
     getSyncStatus() {
         return {
             isProcessing: this.isProcessing,
@@ -446,7 +474,6 @@ class TradeSyncService {
         };
     }
 
-    // Method to manually process specific date range
     async processDateRange(startDate, endDate) {
         console.log(`🔄 Manual processing for date range: ${startDate} to ${endDate}`);
 
@@ -455,7 +482,6 @@ class TradeSyncService {
 
         await this.syncTrades();
 
-        // Reset to previous mode
         this.setSyncMode('INITIAL_SETUP');
     }
 }

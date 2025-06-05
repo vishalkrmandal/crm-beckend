@@ -1,23 +1,41 @@
-// backend/models/IBWithdrawal.js
+// Backend/models/IBWithdrawal.js
 const mongoose = require('mongoose');
 
 const IBWithdrawalSchema = new mongoose.Schema({
-    ibConfigurationId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'IBClientConfiguration',
-        required: true
-    },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    IBbalance: {
-        type: Number,
+    ibConfigurationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'IBClientConfiguration',
+        required: true
     },
-    reference: {
+    amount: {
+        type: Number,
+        required: true,
+        min: 0
+    },
+    withdrawalMethod: {
         type: String,
-        unique: true
+        enum: ['bank', 'wallet'],
+        required: true
+    },
+    // Bank Details (if bank withdrawal)
+    bankDetails: {
+        bankName: String,
+        accountHolderName: String,
+        accountNumber: String,
+        ifscSwiftCode: String
+    },
+    // Wallet Details (if wallet withdrawal)
+    walletDetails: {
+        walletType: {
+            type: String,
+            enum: ['tether', 'eth', 'trx']
+        },
+        walletAddress: String
     },
     status: {
         type: String,
@@ -33,41 +51,29 @@ const IBWithdrawalSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
-    paymentDetails: {
-        method: {
-            type: String,
-            default: null
-        },
-        transactionId: {
-            type: String,
-            default: null
-        },
-        notes: {
-            type: String,
-            default: null
-        }
+    rejectedReason: {
+        type: String,
+        default: null
     },
-    createdAt: {
-        type: Date,
-        default: Date.now
+    adminNotes: {
+        type: String,
+        default: null
     },
-    updatedAt: {
+    transactionId: {
+        type: String,
+        default: null
+    },
+    processedAt: {
         type: Date,
-        default: Date.now
+        default: null
     }
+}, {
+    timestamps: true
 });
 
-// Pre-save hook to generate reference if not provided
-IBWithdrawalSchema.pre('save', function (next) {
-    if (!this.reference) {
-        // Generate a unique reference number: IB-W-TIMESTAMP-RANDOM
-        const timestamp = Date.now().toString().slice(-6);
-        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        this.reference = `IB-W-${timestamp}${random}`;
-    }
-    next();
-});
+// Indexes for better performance
+IBWithdrawalSchema.index({ userId: 1, status: 1 });
+IBWithdrawalSchema.index({ ibConfigurationId: 1 });
+IBWithdrawalSchema.index({ status: 1, createdAt: -1 });
 
-const IBWithdrawal = mongoose.model('IBWithdrawal', IBWithdrawalSchema);
-
-module.exports = IBWithdrawal;
+module.exports = mongoose.model('IBWithdrawal', IBWithdrawalSchema);

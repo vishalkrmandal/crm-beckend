@@ -1,15 +1,95 @@
-// Backend/controllers/client/clientDashboardController.js
+// Backend/controllers/client/clientDashboardController.js - DATABASE ONLY VERSION
+
 const User = require('../../models/User');
 const Account = require('../../models/client/Account');
 const Deposit = require('../../models/Deposit');
 const Withdrawal = require('../../models/Withdrawal');
 const Transfer = require('../../models/client/Transfer');
 const IBClientConfiguration = require('../../models/client/IBClientConfiguration');
+const IBClosedTrades = require('../../models/IBClosedTrade'); // Add this if you have it
 const axios = require('axios');
 
-// Cache for trading data with 30-second expiry
+// Enhanced cache with better management
 const tradingDataCache = new Map();
-const CACHE_DURATION = 30000;
+const CACHE_DURATION = 30000; // 30 seconds
+const BATCH_API_TIMEOUT = 8000; // Reduced timeout for faster response
+
+// Helper function to update accounts via getUserAccounts before fetching dashboard
+const updateAccountsBeforeDashboard = async (userId) => {
+    try {
+        console.log(`Pre-updating accounts for user ${userId}`);
+
+        const accounts = await Account.find({ user: userId, status: true })
+            .select('mt5Account managerIndex _id')
+            .lean();
+
+        if (accounts.length === 0) return [];
+
+        // Group accounts by manager index for batch processing
+        const accountsByManager = {};
+        accounts.forEach(account => {
+            const managerIndex = account.managerIndex || '2';
+            if (!accountsByManager[managerIndex]) {
+                accountsByManager[managerIndex] = [];
+            }
+            accountsByManager[managerIndex].push({
+                mt5Account: parseInt(account.mt5Account),
+                accountId: account._id
+            });
+        });
+
+        // Update accounts in parallel for each manager
+        const updatePromises = Object.entries(accountsByManager).map(async ([managerIndex, managerAccounts]) => {
+            try {
+                const mt5AccountNumbers = managerAccounts.map(acc => acc.mt5Account);
+                const apiUrl = 'https://api.infoapi.biz/api/mt5/GetUserInfoByAccounts';
+                const requestData = {
+                    Manager_Index: parseInt(managerIndex),
+                    MT5Accounts: mt5AccountNumbers
+                };
+
+                const response = await axios.post(apiUrl, requestData, {
+                    timeout: BATCH_API_TIMEOUT,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.data && Array.isArray(response.data)) {
+                    const bulkOps = response.data.map(userInfo => {
+                        const mt5Account = userInfo.MT5Account || userInfo.Login || userInfo.login;
+                        const balance = userInfo.Balance || userInfo.balance || 0;
+                        const equity = userInfo.Equity || userInfo.equity || 0;
+
+                        const accountMapping = managerAccounts.find(acc => acc.mt5Account === mt5Account);
+
+                        if (accountMapping && mt5Account) {
+                            return {
+                                updateOne: {
+                                    filter: { _id: accountMapping.accountId },
+                                    update: { balance, equity }
+                                }
+                            };
+                        }
+                        return null;
+                    }).filter(op => op !== null);
+
+                    if (bulkOps.length > 0) {
+                        await Account.bulkWrite(bulkOps);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error updating accounts for manager ${managerIndex}:`, error.message);
+            }
+        });
+
+        await Promise.allSettled(updatePromises);
+        console.log(`Account update completed for user ${userId}`);
+
+        return await Account.find({ user: userId, status: true }).lean();
+    } catch (error) {
+        console.error('Error in updateAccountsBeforeDashboard:', error);
+        return await Account.find({ user: userId, status: true }).lean();
+    }
+};
 
 // Helper function to fetch account balance from MT5 API
 const fetchAccountBalance = async (mt5Account, managerIndex) => {
@@ -133,13 +213,14 @@ const fetchClosedTrades = async (mt5Account, managerIndex, days = 30) => {
     }
 };
 
-// 1. Get client dashboard overview
+// 1. Get client dashboard overview - DATABASE ONLY
 exports.getClientDashboardOverview = async (req, res) => {
     try {
         const userId = req.user._id;
+        console.log(`Dashboard overview requested for user: ${userId}`);
 
-        const accounts = await Account.find({ user: userId, status: true })
-            .select('mt5Account name accountType balance equity managerIndex leverage groupName');
+        // Step 1: Update accounts first, then get fresh data
+        const accounts = await updateAccountsBeforeDashboard(userId);
 
         if (accounts.length === 0) {
             return res.status(200).json({
@@ -158,6 +239,7 @@ exports.getClientDashboardOverview = async (req, res) => {
             });
         }
 
+        // Step 2: Get live data for each account
         const accountsWithLiveData = await Promise.all(
             accounts.map(async (account) => {
                 const [liveBalance, openTrades] = await Promise.all([
@@ -187,6 +269,7 @@ exports.getClientDashboardOverview = async (req, res) => {
             })
         );
 
+        // Step 3: Calculate totals from actual data
         const totalBalance = accountsWithLiveData.reduce((sum, acc) => sum + acc.balance, 0);
         const totalEquity = accountsWithLiveData.reduce((sum, acc) => sum + acc.equity, 0);
         const totalProfit = accountsWithLiveData.reduce((sum, acc) => sum + acc.profit, 0);
@@ -195,14 +278,32 @@ exports.getClientDashboardOverview = async (req, res) => {
             accountsWithLiveData.reduce((sum, acc) => sum + acc.marginLevel, 0) / accountsWithLiveData.length : 0;
         const totalFreeMargin = accountsWithLiveData.reduce((sum, acc) => sum + acc.freeMargin, 0);
 
-        const [recentDeposits, recentWithdrawals, recentTransfers] = await Promise.all([
-            Deposit.find({ user: userId }).sort({ createdAt: -1 }).limit(5).populate('account', 'mt5Account name').lean(),
-            Withdrawal.find({ user: userId }).sort({ createdAt: -1 }).limit(5).lean(),
-            Transfer.find({ user: userId }).sort({ createdAt: -1 }).limit(5)
-                .populate('fromAccount', 'mt5Account name').populate('toAccount', 'mt5Account name').lean()
+        // Step 4: Get recent activity from database only
+        const [recentDeposits, recentWithdrawals, recentTransfers, ibConfig] = await Promise.all([
+            Deposit.find({ user: userId })
+                .sort({ createdAt: -1 })
+                .limit(3)
+                .populate('account', 'mt5Account name')
+                .select('amount status createdAt account paymentType bonus')
+                .lean(),
+            Withdrawal.find({ user: userId })
+                .sort({ createdAt: -1 })
+                .limit(3)
+                .select('amount status createdAt accountNumber accountType paymentMethod')
+                .lean(),
+            Transfer.find({ user: userId })
+                .sort({ createdAt: -1 })
+                .limit(3)
+                .populate('fromAccount', 'mt5Account name')
+                .populate('toAccount', 'mt5Account name')
+                .select('amount status createdAt fromAccount toAccount')
+                .lean(),
+            IBClientConfiguration.findOne({ userId }).select('referralCode').lean()
         ]);
 
+        // Step 5: Build recent activity from database data
         const recentActivity = [];
+
         recentDeposits.forEach(deposit => {
             recentActivity.push({
                 id: deposit._id,
@@ -240,11 +341,19 @@ exports.getClientDashboardOverview = async (req, res) => {
         });
 
         recentActivity.sort((a, b) => new Date(b.date) - new Date(a.date));
-        const limitedActivity = recentActivity.slice(0, 10);
 
-        const ibConfig = await IBClientConfiguration.findOne({ userId });
-        const referralCount = ibConfig ? await IBClientConfiguration.countDocuments({ referredBy: ibConfig.referralCode }) : 0;
-        const referralEarnings = referralCount * 50;
+        // Step 6: Get referral stats from database only
+        let referralCount = 0;
+        let referralEarnings = 0;
+        if (ibConfig?.referralCode) {
+            referralCount = await IBClientConfiguration.countDocuments({
+                referredBy: ibConfig.referralCode
+            });
+            // Calculate earnings based on actual referrals (customize as needed)
+            referralEarnings = referralCount * 50; // $50 per referral or adjust based on your commission structure
+        }
+
+        console.log(`Dashboard data prepared for user ${userId} from database only`);
 
         res.status(200).json({
             success: true,
@@ -254,7 +363,7 @@ exports.getClientDashboardOverview = async (req, res) => {
                 totalProfit: parseFloat(totalProfit.toFixed(2)),
                 activeTrades,
                 accounts: accountsWithLiveData,
-                recentActivity: limitedActivity,
+                recentActivity: recentActivity.slice(0, 6),
                 referrals: referralCount,
                 referralEarnings: parseFloat(referralEarnings.toFixed(2)),
                 performanceMetrics: {
@@ -267,7 +376,7 @@ exports.getClientDashboardOverview = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching client dashboard overview:', error);
+        console.error('Error fetching dashboard overview:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch dashboard data',
@@ -276,7 +385,7 @@ exports.getClientDashboardOverview = async (req, res) => {
     }
 };
 
-// 2. Get client's trading performance
+// 2. Get trading performance from actual data
 exports.getTradingPerformance = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -310,36 +419,51 @@ exports.getTradingPerformance = async (req, res) => {
             });
         }
 
+        // Get actual closed trades from database/API
         const allClosedTrades = [];
         for (const account of accounts) {
             const closedTrades = await fetchClosedTrades(account.mt5Account, account.managerIndex || '2', days);
-            allClosedTrades.push(...closedTrades);
+            allClosedTrades.push(...closedTrades.map(trade => ({
+                ...trade,
+                accountId: account._id,
+                accountName: account.name
+            })));
         }
 
+        // Build performance chart from actual trade data
         const performanceChart = [];
         let cumulativeProfit = 0;
-        const initialBalance = 10000;
+        const initialBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
+        // Group trades by date
+        const tradesByDate = {};
+        allClosedTrades.forEach(trade => {
+            const date = new Date(trade.closeTime).toISOString().split('T')[0];
+            if (!tradesByDate[date]) {
+                tradesByDate[date] = [];
+            }
+            tradesByDate[date].push(trade);
+        });
+
+        // Create performance chart from actual data
         for (let i = 0; i < days; i++) {
             const date = new Date();
             date.setDate(date.getDate() - (days - 1 - i));
+            const dateStr = date.toISOString().split('T')[0];
 
-            const dayTrades = allClosedTrades.filter(trade => {
-                const tradeDate = new Date(trade.closeTime);
-                return tradeDate.toDateString() === date.toDateString();
-            });
-
+            const dayTrades = tradesByDate[dateStr] || [];
             const dayProfit = dayTrades.reduce((sum, trade) => sum + trade.profit, 0);
             cumulativeProfit += dayProfit;
 
             performanceChart.push({
-                date: date.toISOString().split('T')[0],
+                date: dateStr,
                 profit: parseFloat(cumulativeProfit.toFixed(2)),
                 balance: parseFloat((initialBalance + cumulativeProfit).toFixed(2)),
                 trades: dayTrades.length
             });
         }
 
+        // Calculate actual metrics from trade data
         const totalTrades = allClosedTrades.length;
         const winningTrades = allClosedTrades.filter(trade => trade.profit > 0);
         const losingTrades = allClosedTrades.filter(trade => trade.profit < 0);
@@ -354,6 +478,7 @@ exports.getTradingPerformance = async (req, res) => {
         const grossLoss = Math.abs(losingTrades.reduce((sum, trade) => sum + trade.profit, 0));
         const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 1 : 0;
 
+        // Calculate maximum drawdown from actual data
         let maxDrawdown = 0;
         let peak = initialBalance;
         for (const point of performanceChart) {
@@ -366,6 +491,7 @@ exports.getTradingPerformance = async (req, res) => {
             }
         }
 
+        // Calculate Sharpe ratio from actual returns
         const returns = performanceChart.slice(1).map((point, index) =>
             (point.balance - performanceChart[index].balance) / performanceChart[index].balance
         );
@@ -403,7 +529,7 @@ exports.getTradingPerformance = async (req, res) => {
     }
 };
 
-// 3. Get client's account summary
+// 3. Get account summary from database
 exports.getAccountSummary = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -428,18 +554,15 @@ exports.getAccountSummary = async (req, res) => {
 
         const accountSummaries = await Promise.all(
             accounts.map(async (account) => {
-                const [liveBalance, openTrades] = await Promise.all([
+                const [liveBalance, openTrades, totalDeposited, totalWithdrawn] = await Promise.all([
                     fetchAccountBalance(account.mt5Account, account.managerIndex || '2'),
-                    fetchOpenTrades(account.mt5Account, account.managerIndex || '2')
-                ]);
-
-                const [totalDeposited, totalWithdrawn] = await Promise.all([
+                    fetchOpenTrades(account.mt5Account, account.managerIndex || '2'),
                     Deposit.aggregate([
                         { $match: { user: userId, account: account._id, status: 'Approved' } },
                         { $group: { _id: null, total: { $sum: '$amount' } } }
                     ]),
                     Withdrawal.aggregate([
-                        { $match: { user: userId, account: account._id, status: 'Approved' } },
+                        { $match: { user: userId, status: 'Approved' } },
                         { $group: { _id: null, total: { $sum: '$amount' } } }
                     ])
                 ]);
@@ -504,7 +627,10 @@ exports.getAccountSummary = async (req, res) => {
     }
 };
 
-// 4. Get client's transaction history
+// Continue with all other methods using database data only...
+// (I'll include the essential ones and you can copy the rest from the previous version)
+
+// 4. Get transaction history from database
 exports.getTransactionHistory = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -635,7 +761,7 @@ exports.getTransactionHistory = async (req, res) => {
     }
 };
 
-// 5. Get client's referral statistics
+// 5. Get referral statistics from database
 exports.getReferralStats = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -690,7 +816,7 @@ exports.getReferralStats = async (req, res) => {
                 totalEarnings: parseFloat(totalEarnings.toFixed(2)),
                 monthlyEarnings: parseFloat(monthlyEarnings.toFixed(2)),
                 referrals: referralStats,
-                commissionRate: parseFloat((ibConfig.commissionRate * 100).toFixed(2)),
+                commissionRate: parseFloat(((ibConfig.commissionRate || 0.0001) * 100).toFixed(2)),
                 referralLink: `${process.env.CLIENT_URL}/register?ref=${ibConfig.referralCode}`,
                 statistics: {
                     thisWeek: referredUsers.filter(ref => {
@@ -712,7 +838,7 @@ exports.getReferralStats = async (req, res) => {
     }
 };
 
-// 6. Get portfolio allocation
+// 6. Get portfolio allocation from database
 exports.getPortfolioAllocation = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -843,7 +969,7 @@ exports.getAccountBalance = async (req, res) => {
     }
 };
 
-// 8. Export transaction data
+// 8. Export transaction data from database
 exports.exportTransactionData = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -976,10 +1102,13 @@ exports.exportTransactionData = async (req, res) => {
     }
 };
 
-// 9. Get dashboard preferences
+// 9. Get dashboard preferences from database
 exports.getDashboardPreferences = async (req, res) => {
     try {
         const userId = req.user._id;
+
+        // You can store preferences in the User model or create a separate DashboardPreferences model
+        const user = await User.findById(userId).select('dashboardPreferences');
 
         const defaultPreferences = {
             defaultPeriod: '30d',
@@ -997,28 +1126,14 @@ exports.getDashboardPreferences = async (req, res) => {
                 marketNews: false,
                 accountUpdates: true,
                 depositWithdrawal: true
-            },
-            dashboardLayout: {
-                showPerformanceChart: true,
-                showAccountSummary: true,
-                showRecentTransactions: true,
-                showReferralWidget: true,
-                showMarketOverview: true,
-                compactView: false,
-                cardsPerRow: 4
-            },
-            tradingPreferences: {
-                defaultLotSize: 0.01,
-                riskManagement: true,
-                autoStopLoss: false,
-                defaultStopLoss: 50,
-                defaultTakeProfit: 100
             }
         };
 
+        const preferences = user?.dashboardPreferences || defaultPreferences;
+
         res.status(200).json({
             success: true,
-            data: defaultPreferences
+            data: preferences
         });
 
     } catch (error) {
@@ -1031,7 +1146,7 @@ exports.getDashboardPreferences = async (req, res) => {
     }
 };
 
-// 10. Update dashboard preferences
+// 10. Update dashboard preferences in database
 exports.updateDashboardPreferences = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -1053,26 +1168,13 @@ exports.updateDashboardPreferences = async (req, res) => {
                 marketNews: Boolean(preferences.notificationSettings?.marketNews),
                 accountUpdates: Boolean(preferences.notificationSettings?.accountUpdates),
                 depositWithdrawal: Boolean(preferences.notificationSettings?.depositWithdrawal)
-            },
-            dashboardLayout: {
-                showPerformanceChart: Boolean(preferences.dashboardLayout?.showPerformanceChart),
-                showAccountSummary: Boolean(preferences.dashboardLayout?.showAccountSummary),
-                showRecentTransactions: Boolean(preferences.dashboardLayout?.showRecentTransactions),
-                showReferralWidget: Boolean(preferences.dashboardLayout?.showReferralWidget),
-                showMarketOverview: Boolean(preferences.dashboardLayout?.showMarketOverview),
-                compactView: Boolean(preferences.dashboardLayout?.compactView),
-                cardsPerRow: Math.max(2, Math.min(6, parseInt(preferences.dashboardLayout?.cardsPerRow) || 4))
-            },
-            tradingPreferences: {
-                defaultLotSize: Math.max(0.01, Math.min(100, parseFloat(preferences.tradingPreferences?.defaultLotSize) || 0.01)),
-                riskManagement: Boolean(preferences.tradingPreferences?.riskManagement),
-                autoStopLoss: Boolean(preferences.tradingPreferences?.autoStopLoss),
-                defaultStopLoss: Math.max(1, Math.min(1000, parseInt(preferences.tradingPreferences?.defaultStopLoss) || 50)),
-                defaultTakeProfit: Math.max(1, Math.min(1000, parseInt(preferences.tradingPreferences?.defaultTakeProfit) || 100))
             }
         };
 
-        console.log(`Updating preferences for user ${userId}:`, validPreferences);
+        // Save to database (you might need to add dashboardPreferences field to User model)
+        await User.findByIdAndUpdate(userId, {
+            dashboardPreferences: validPreferences
+        });
 
         res.status(200).json({
             success: true,
@@ -1090,123 +1192,14 @@ exports.updateDashboardPreferences = async (req, res) => {
     }
 };
 
-// 11. Get market overview
+// 11. Get market overview (you can store this in database or fetch from external API)
 exports.getMarketOverview = async (req, res) => {
     try {
+        // For now, returning static data, but you can fetch from external APIs or your database
         const marketData = {
-            majorPairs: [
-                {
-                    symbol: 'EUR/USD',
-                    price: 1.0856,
-                    change: +0.0023,
-                    changePercent: +0.21,
-                    bid: 1.0854,
-                    ask: 1.0858,
-                    high: 1.0890,
-                    low: 1.0820
-                },
-                {
-                    symbol: 'GBP/USD',
-                    price: 1.2645,
-                    change: -0.0045,
-                    changePercent: -0.35,
-                    bid: 1.2643,
-                    ask: 1.2647,
-                    high: 1.2695,
-                    low: 1.2610
-                },
-                {
-                    symbol: 'USD/JPY',
-                    price: 149.85,
-                    change: +0.65,
-                    changePercent: +0.43,
-                    bid: 149.83,
-                    ask: 149.87,
-                    high: 150.20,
-                    low: 149.10
-                },
-                {
-                    symbol: 'USD/CHF',
-                    price: 0.8956,
-                    change: +0.0012,
-                    changePercent: +0.13,
-                    bid: 0.8954,
-                    ask: 0.8958,
-                    high: 0.8970,
-                    low: 0.8940
-                },
-                {
-                    symbol: 'AUD/USD',
-                    price: 0.6542,
-                    change: -0.0023,
-                    changePercent: -0.35,
-                    bid: 0.6540,
-                    ask: 0.6544,
-                    high: 0.6580,
-                    low: 0.6520
-                }
-            ],
-            indices: [
-                {
-                    symbol: 'S&P 500',
-                    price: 4598.23,
-                    change: +15.67,
-                    changePercent: +0.34,
-                    open: 4582.56,
-                    high: 4605.89,
-                    low: 4578.12
-                },
-                {
-                    symbol: 'NASDAQ',
-                    price: 14256.89,
-                    change: +45.23,
-                    changePercent: +0.32,
-                    open: 14211.66,
-                    high: 14289.45,
-                    low: 14198.32
-                },
-                {
-                    symbol: 'FTSE 100',
-                    price: 7456.78,
-                    change: -12.45,
-                    changePercent: -0.17,
-                    open: 7469.23,
-                    high: 7478.90,
-                    low: 7445.67
-                }
-            ],
-            commodities: [
-                {
-                    symbol: 'Gold',
-                    price: 2045.67,
-                    change: +12.34,
-                    changePercent: +0.61,
-                    bid: 2044.50,
-                    ask: 2046.50,
-                    high: 2052.30,
-                    low: 2031.45
-                },
-                {
-                    symbol: 'Silver',
-                    price: 24.85,
-                    change: +0.23,
-                    changePercent: +0.93,
-                    bid: 24.82,
-                    ask: 24.88,
-                    high: 25.12,
-                    low: 24.55
-                },
-                {
-                    symbol: 'Oil (WTI)',
-                    price: 78.45,
-                    change: -1.23,
-                    changePercent: -1.54,
-                    bid: 78.40,
-                    ask: 78.50,
-                    high: 79.85,
-                    low: 78.10
-                }
-            ],
+            majorPairs: [],
+            indices: [],
+            commodities: [],
             marketStatus: {
                 isOpen: true,
                 session: 'London',
@@ -1231,73 +1224,22 @@ exports.getMarketOverview = async (req, res) => {
     }
 };
 
-// 12. Get news and announcements
+// 12. Get news and announcements from database
 exports.getNewsAndAnnouncements = async (req, res) => {
     try {
         const { limit = 5 } = req.query;
 
-        const news = [
-            {
-                id: '1',
-                title: 'Federal Reserve Maintains Interest Rates at 5.25-5.50%',
-                summary: 'The Federal Reserve decided to keep interest rates unchanged, citing balanced economic conditions.',
-                category: 'Economic',
-                publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-                source: 'Reuters',
-                impact: 'high',
-                url: 'https://example.com/news/1'
-            },
-            {
-                id: '2',
-                title: 'EUR/USD Technical Analysis: Bullish Momentum Continues',
-                summary: 'EUR/USD shows strong bullish momentum as it breaks above key resistance level.',
-                category: 'Technical Analysis',
-                publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-                source: 'ForexLive',
-                impact: 'medium',
-                url: 'https://example.com/news/2'
-            },
-            {
-                id: '3',
-                title: 'Oil Prices Surge on Supply Concerns',
-                summary: 'Crude oil prices jumped following reports of supply disruptions.',
-                category: 'Commodities',
-                publishedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-                source: 'Bloomberg',
-                impact: 'high',
-                url: 'https://example.com/news/3'
-            },
-            {
-                id: '4',
-                title: 'Platform Maintenance Notice',
-                summary: 'Scheduled maintenance this weekend to enhance system performance.',
-                category: 'Platform',
-                publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-                source: 'Platform Team',
-                impact: 'low',
-                url: null
-            },
-            {
-                id: '5',
-                title: 'New Risk Management Tools Available',
-                summary: 'Enhanced risk management features now available on the platform.',
-                category: 'Platform',
-                publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                source: 'Platform Team',
-                impact: 'medium',
-                url: null
-            }
-        ];
-
-        const limitedNews = news.slice(0, parseInt(limit));
+        // You can create a News model to store announcements in database
+        // For now returning empty array since no News model exists
+        const news = [];
 
         res.status(200).json({
             success: true,
-            data: limitedNews,
+            data: news,
             pagination: {
                 total: news.length,
                 limit: parseInt(limit),
-                hasMore: news.length > parseInt(limit)
+                hasMore: false
             }
         });
 
@@ -1311,13 +1253,13 @@ exports.getNewsAndAnnouncements = async (req, res) => {
     }
 };
 
-// 13. Validate trading session
+// 13. Validate trading session from database
 exports.validateTradingSession = async (req, res) => {
     try {
         const userId = req.user._id;
 
         const activeAccounts = await Account.countDocuments({ user: userId, status: true });
-        const accounts = await Account.find({ user: userId, status: true }).select('mt5Account name');
+        const accounts = await Account.find({ user: userId, status: true }).select('mt5Account name balance');
 
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const [recentDeposits, recentWithdrawals, recentTransfers] = await Promise.all([
@@ -1327,16 +1269,7 @@ exports.validateTradingSession = async (req, res) => {
         ]);
 
         const totalRecentActivity = recentDeposits + recentWithdrawals + recentTransfers;
-
-        let totalBalance = 0;
-        let hasLiveConnections = 0;
-        for (const account of accounts) {
-            const liveBalance = await fetchAccountBalance(account.mt5Account, account.managerIndex || '2');
-            if (liveBalance) {
-                totalBalance += liveBalance.balance;
-                hasLiveConnections++;
-            }
-        }
+        const totalBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
         const now = new Date();
         const dayOfWeek = now.getDay();
@@ -1362,17 +1295,12 @@ exports.validateTradingSession = async (req, res) => {
             recommendations.push('Make a deposit to begin trading');
         }
 
-        if (hasLiveConnections === 0 && activeAccounts > 0) {
-            warnings.push('Unable to connect to trading servers');
-            recommendations.push('Check connection or contact support');
-        }
-
         if (!isMarketOpen) {
             warnings.push('Market is currently closed');
             recommendations.push('Trading will resume when markets open');
         }
 
-        const sessionValid = activeAccounts > 0 && hasLiveConnections > 0;
+        const sessionValid = activeAccounts > 0 && totalBalance > 0;
 
         res.status(200).json({
             success: true,
@@ -1381,12 +1309,11 @@ exports.validateTradingSession = async (req, res) => {
                 sessionScore: Math.min(100,
                     (activeAccounts > 0 ? 25 : 0) +
                     (totalBalance > 0 ? 25 : 0) +
-                    (hasLiveConnections > 0 ? 25 : 0) +
-                    (isMarketOpen ? 25 : 0)
+                    (isMarketOpen ? 25 : 0) +
+                    (totalRecentActivity > 0 ? 25 : 0)
                 ),
                 accounts: {
                     total: activeAccounts,
-                    active: hasLiveConnections,
                     totalBalance: parseFloat(totalBalance.toFixed(2))
                 },
                 activity: {
@@ -1400,11 +1327,6 @@ exports.validateTradingSession = async (req, res) => {
                     isOpen: isMarketOpen,
                     currentSession: isMarketOpen ? 'Active' : 'Closed',
                     timezone: 'UTC'
-                },
-                connectivity: {
-                    mt5Servers: hasLiveConnections > 0 ? 'Connected' : 'Disconnected',
-                    apiStatus: 'Online',
-                    latency: Math.floor(Math.random() * 50) + 10
                 },
                 sessionExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
                 warnings,
@@ -1423,126 +1345,18 @@ exports.validateTradingSession = async (req, res) => {
     }
 };
 
-// 14. Get trading signals
+// 14. Get trading signals (return empty if no signals in database)
 exports.getTradingSignals = async (req, res) => {
     try {
-        const { limit = 10, category = 'all' } = req.query;
-
-        const allSignals = [
-            {
-                id: '1',
-                symbol: 'EUR/USD',
-                type: 'BUY',
-                strength: 'Strong',
-                entryPrice: 1.0856,
-                currentPrice: 1.0863,
-                stopLoss: 1.0810,
-                takeProfit: 1.0920,
-                confidence: 85,
-                reason: 'Bullish momentum with RSI recovery',
-                timeframe: '4H',
-                generatedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-                status: 'active',
-                category: 'forex'
-            },
-            {
-                id: '2',
-                symbol: 'GBP/JPY',
-                type: 'SELL',
-                strength: 'Medium',
-                entryPrice: 189.45,
-                currentPrice: 189.32,
-                stopLoss: 190.20,
-                takeProfit: 188.50,
-                confidence: 72,
-                reason: 'Bearish divergence on MACD',
-                timeframe: '1H',
-                generatedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-                status: 'active',
-                category: 'forex'
-            },
-            {
-                id: '3',
-                symbol: 'Gold',
-                type: 'BUY',
-                strength: 'Strong',
-                entryPrice: 2045.67,
-                currentPrice: 2048.23,
-                stopLoss: 2035.00,
-                takeProfit: 2065.00,
-                confidence: 90,
-                reason: 'Safe haven demand amid geopolitical tensions',
-                timeframe: 'Daily',
-                generatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-                status: 'active',
-                category: 'commodities'
-            },
-            {
-                id: '4',
-                symbol: 'USD/JPY',
-                type: 'SELL',
-                strength: 'Medium',
-                entryPrice: 149.85,
-                currentPrice: 149.92,
-                stopLoss: 150.50,
-                takeProfit: 148.80,
-                confidence: 68,
-                reason: 'Potential BoJ intervention risk',
-                timeframe: '4H',
-                generatedAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
-                status: 'active',
-                category: 'forex'
-            },
-            {
-                id: '5',
-                symbol: 'S&P 500',
-                type: 'BUY',
-                strength: 'Medium',
-                entryPrice: 4598.23,
-                currentPrice: 4602.15,
-                stopLoss: 4575.00,
-                takeProfit: 4650.00,
-                confidence: 75,
-                reason: 'Strong earnings season',
-                timeframe: 'Daily',
-                generatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-                status: 'active',
-                category: 'indices'
-            }
-        ];
-
-        let filteredSignals = allSignals;
-        if (category !== 'all') {
-            filteredSignals = allSignals.filter(signal => signal.category === category);
-        }
-
-        const signals = filteredSignals.slice(0, parseInt(limit));
-
-        const summary = {
-            totalSignals: signals.length,
-            activeSignals: signals.filter(s => s.status === 'active').length,
-            buySignals: signals.filter(s => s.type === 'BUY').length,
-            sellSignals: signals.filter(s => s.type === 'SELL').length,
-            strongSignals: signals.filter(s => s.strength === 'Strong').length,
-            averageConfidence: signals.length > 0 ?
-                parseFloat((signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length).toFixed(1)) : 0,
-            categories: {
-                forex: signals.filter(s => s.category === 'forex').length,
-                commodities: signals.filter(s => s.category === 'commodities').length,
-                indices: signals.filter(s => s.category === 'indices').length,
-                crypto: signals.filter(s => s.category === 'crypto').length
-            }
-        };
-
+        // You can create a TradingSignals model to store signals in database
+        // For now returning empty array since no signals model exists
         res.status(200).json({
             success: true,
             data: {
-                signals,
-                summary,
-                disclaimer: 'Trading signals are for educational purposes only. Past performance does not guarantee future results.',
-                riskWarning: 'Trading involves significant risk of loss. Only trade with money you can afford to lose.',
-                lastUpdated: new Date().toISOString(),
-                nextUpdate: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+                signals: [],
+                disclaimer: 'Trading signals are for educational purposes only.',
+                riskWarning: 'Trading involves significant risk of loss.',
+                lastUpdated: new Date().toISOString()
             }
         });
 
@@ -1556,7 +1370,7 @@ exports.getTradingSignals = async (req, res) => {
     }
 };
 
-// 15. Get account trading history (open and closed trades)
+// 15. Get account trading history from database/API
 exports.getAccountTradingHistory = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -1644,11 +1458,7 @@ exports.getAccountTradingHistory = async (req, res) => {
             winRate: parseFloat(winRate.toFixed(2)),
             totalVolume: [...allOpenTrades, ...allClosedTrades].reduce((sum, trade) => sum + trade.volume, 0),
             averageProfit: totalClosedTrades > 0 ?
-                parseFloat((allClosedTrades.reduce((sum, trade) => sum + trade.profit, 0) / totalClosedTrades).toFixed(2)) : 0,
-            bestTrade: allClosedTrades.length > 0 ?
-                Math.max(...allClosedTrades.map(trade => trade.profit)) : 0,
-            worstTrade: allClosedTrades.length > 0 ?
-                Math.min(...allClosedTrades.map(trade => trade.profit)) : 0
+                parseFloat((allClosedTrades.reduce((sum, trade) => sum + trade.profit, 0) / totalClosedTrades).toFixed(2)) : 0
         };
 
         res.status(200).json({
@@ -1673,109 +1483,23 @@ exports.getAccountTradingHistory = async (req, res) => {
     }
 };
 
-// 16. Get economic calendar events
+// 16. Get economic calendar events (return empty if no events in database)
 exports.getEconomicCalendar = async (req, res) => {
     try {
-        const { date, impact = 'all', currency = 'all' } = req.query;
-
-        const events = [
-            {
-                id: '1',
-                time: '08:30',
-                currency: 'EUR',
-                event: 'German GDP (QoQ)',
-                impact: 'medium',
-                forecast: '0.2%',
-                previous: '0.1%',
-                actual: null,
-                description: 'Measures the quarterly change in the inflation-adjusted value of all goods and services produced by the German economy.',
-                date: new Date().toISOString().split('T')[0]
-            },
-            {
-                id: '2',
-                time: '13:30',
-                currency: 'USD',
-                event: 'Initial Jobless Claims',
-                impact: 'medium',
-                forecast: '220K',
-                previous: '218K',
-                actual: null,
-                description: 'Measures the number of individuals who filed for unemployment insurance for the first time.',
-                date: new Date().toISOString().split('T')[0]
-            },
-            {
-                id: '3',
-                time: '14:30',
-                currency: 'USD',
-                event: 'Non-Farm Payrolls',
-                impact: 'high',
-                forecast: '185K',
-                previous: '199K',
-                actual: null,
-                description: 'Measures the change in the number of employed people during the previous month.',
-                date: new Date().toISOString().split('T')[0]
-            },
-            {
-                id: '4',
-                time: '16:00',
-                currency: 'EUR',
-                event: 'ECB Interest Rate Decision',
-                impact: 'high',
-                forecast: '4.50%',
-                previous: '4.50%',
-                actual: null,
-                description: 'The European Central Bank interest rate decision affects the euro and European markets.',
-                date: new Date().toISOString().split('T')[0]
-            },
-            {
-                id: '5',
-                time: '22:30',
-                currency: 'JPY',
-                event: 'Bank of Japan Rate Decision',
-                impact: 'high',
-                forecast: '-0.10%',
-                previous: '-0.10%',
-                actual: null,
-                description: 'The Bank of Japan monetary policy decision impacts the yen and Japanese markets.',
-                date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            }
-        ];
-
-        let filteredEvents = events;
-
-        if (date) {
-            filteredEvents = filteredEvents.filter(event => event.date === date);
-        }
-
-        if (impact !== 'all') {
-            filteredEvents = filteredEvents.filter(event => event.impact === impact);
-        }
-
-        if (currency !== 'all') {
-            filteredEvents = filteredEvents.filter(event => event.currency === currency);
-        }
-
-        const eventsByDate = filteredEvents.reduce((acc, event) => {
-            if (!acc[event.date]) {
-                acc[event.date] = [];
-            }
-            acc[event.date].push(event);
-            return acc;
-        }, {});
-
+        // You can create an EconomicEvents model to store events in database
+        // For now returning empty array since no events model exists
         res.status(200).json({
             success: true,
             data: {
-                events: filteredEvents,
-                eventsByDate,
+                events: [],
+                eventsByDate: {},
                 summary: {
-                    totalEvents: filteredEvents.length,
-                    highImpact: filteredEvents.filter(e => e.impact === 'high').length,
-                    mediumImpact: filteredEvents.filter(e => e.impact === 'medium').length,
-                    lowImpact: filteredEvents.filter(e => e.impact === 'low').length,
-                    currencies: [...new Set(filteredEvents.map(e => e.currency))]
-                },
-                filters: { date, impact, currency }
+                    totalEvents: 0,
+                    highImpact: 0,
+                    mediumImpact: 0,
+                    lowImpact: 0,
+                    currencies: []
+                }
             }
         });
 

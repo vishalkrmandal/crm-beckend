@@ -20,7 +20,7 @@ const {
 router.use(protect);
 
 // Admin/Superadmin only routes
-router.use(authorize('admin', 'superadmin'));
+router.use(authorize('client', 'admin', 'superadmin'));
 
 // Get all clients
 router.get('/', getAllClients);
@@ -44,6 +44,6 @@ router.get('/export/excel', exportToExcel);
 router.get('/export/pdf', exportToPdf);
 
 // Get accounts for a specific user
-router.get('/users/:userId/accounts', protect, authorize('admin'), getUserAccounts);
+router.get('/users/:userId/accounts', protect, authorize('client', 'admin'), getUserAccounts);
 
 module.exports = router;

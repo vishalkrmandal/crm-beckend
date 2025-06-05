@@ -38,6 +38,7 @@ const ibWithdrawalRoutes = require('./routes/client/ibwithdrawalRoutes');
 const tradingRoutes = require('./routes/client/tradingRoutes');
 const adminDashboardRoutes = require('./routes/admin/adminDashboardRoutes');
 const clientDashboardRoutes = require('./routes/client/clientDashboardRoutes');
+const adminIBWithdrawalRoutes = require('./routes/admin/ibWithdrawalRoutes');
 
 // Import the new commission routes
 const commissionRoutes = require('./routes/client/commissionRoutes');
@@ -100,6 +101,8 @@ app.use('/api/admin/clients', adminClientRoutes);
 app.use('/api/admin/transactions', adminTransactionRoutes);
 app.use('/api/ib-configurations', ibConfigurationRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/admin/ib-withdrawals', adminIBWithdrawalRoutes);
+
 
 // Client Routes
 app.use('/api/accounts', accountRoutes);
