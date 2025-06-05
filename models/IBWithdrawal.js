@@ -12,10 +12,8 @@ const IBWithdrawalSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    amount: {
+    IBbalance: {
         type: Number,
-        required: true,
-        min: 0.01
     },
     reference: {
         type: String,

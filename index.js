@@ -69,6 +69,24 @@ if (config.NODE_ENV === 'development') {
 // Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Sync status route (public) - Add this before authentication routes
+app.get('/api/sync/status', (req, res) => {
+  try {
+    const syncStatus = tradeSyncService.getSyncStatus();
+    res.status(200).json({
+      success: true,
+      syncStatus
+    });
+  } catch (error) {
+    console.error('Sync status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get sync status'
+    });
+  }
+});
+
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/leverages', leverageRoutes);

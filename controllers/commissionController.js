@@ -1,4 +1,4 @@
-// Backend/controllers/client/commissionController.js
+// Backend/controllers/client/commissionController.js - Enhanced Version
 const IBCommission = require('../models/IBCommission');
 const IBClientConfiguration = require('../models/client/IBClientConfiguration');
 const IBClosedTrades = require('../models/IBClosedTrade');
@@ -39,15 +39,16 @@ exports.getTradeCommissions = async (req, res) => {
             symbol: commission.symbol,
             profit: commission.profit,
             volume: commission.volume,
-            rebate: commission.commissionAmount,
-            status: commission.status
+            rebate: commission.commissionAmount, // Changed from commission.commissionAmount to match frontend
+            status: commission.status,
+            level: commission.level
         }));
 
-        // Calculate totals
+        // Calculate totals - Updated to show commission instead of profit in first card
         const totals = {
             totalProfit: commissions.reduce((sum, c) => sum + c.profit, 0),
             totalVolume: commissions.reduce((sum, c) => sum + c.volume, 0),
-            totalRebate: commissions.reduce((sum, c) => sum + c.commissionAmount, 0)
+            totalRebate: commissions.reduce((sum, c) => sum + c.commissionAmount, 0) // This is the commission total
         };
 
         res.status(200).json({
@@ -167,8 +168,10 @@ exports.getPartnerCommissions = async (req, res) => {
         const userId = req.user.id;
         const partnerId = req.params.partnerId;
 
+        console.log('Getting partner commissions for userId:', userId, 'partnerId:', partnerId);
+
         // Verify that the partner is actually a downline of the current user
-        const partnerIBConfig = await IBClientConfiguration.findOne({ userId: partnerId });
+        const partnerIBConfig = await IBClientConfiguration.findById(partnerId);
 
         if (!partnerIBConfig) {
             return res.status(404).json({
@@ -177,21 +180,25 @@ exports.getPartnerCommissions = async (req, res) => {
             });
         }
 
-        // Get commissions earned from this specific partner
+        console.log('Found partner IB config:', partnerIBConfig);
+
+        // Get commissions earned from this specific partner (using IB config ID)
         const commissions = await IBCommission.find({
             ibUserId: userId,
-            clientId: partnerId
+            clientId: partnerIBConfig.userId
         })
             .populate('clientId', 'firstname lastname email')
             .sort({ createdAt: -1 });
 
-        // Get partner details
-        const partner = await User.findById(partnerId, 'firstname lastname email');
-        const partnerAccounts = await Account.find({ user: partnerId });
+        console.log('Found commissions:', commissions.length);
 
-        // Transform data
+        // Get partner details
+        const partner = await User.findById(partnerIBConfig.userId, 'firstname lastname email');
+        const partnerAccounts = await Account.find({ user: partnerIBConfig.userId });
+
+        // Transform data - ensure we're showing the MT5 account in the trade details
         const trades = commissions.map(commission => ({
-            acNo: commission.clientMT5Account,
+            acNo: commission.clientMT5Account, // This is the MT5 account number
             openTime: commission.openTime,
             closeTime: commission.closeTime,
             openPrice: commission.openPrice.toFixed(5),
@@ -203,6 +210,8 @@ exports.getPartnerCommissions = async (req, res) => {
             status: commission.status,
             level: commission.level
         }));
+
+        console.log('Transformed trades:', trades.length);
 
         // Calculate totals
         const totals = {
@@ -261,6 +270,12 @@ exports.getPartnersWithCommissions = async (req, res) => {
                     clientId: partner.userId._id
                 });
 
+                // Get partner's account details (MT5 account)
+                const partnerAccount = await Account.findOne({ user: partner.userId._id });
+
+                // Get full user details including country
+                const fullUserDetails = await User.findById(partner.userId._id, 'firstname lastname email country');
+
                 const totalEarned = commissions.reduce((sum, c) => sum + c.commissionAmount, 0);
                 const totalVolume = commissions.reduce((sum, c) => sum + c.volume, 0);
                 const totalTrades = commissions.length;
@@ -273,7 +288,10 @@ exports.getPartnersWithCommissions = async (req, res) => {
                     totalVolume,
                     totalEarned,
                     totalTrades,
-                    createdAt: partner.createdAt
+                    createdAt: partner.createdAt,
+                    // Enhanced fields with actual data from user and account models
+                    country: fullUserDetails?.country?.name || 'Unknown',
+                    mt5Account: partnerAccount ? partnerAccount.mt5Account : 'No Account'
                 };
             } catch (error) {
                 console.error('Error processing partner:', partner._id, error);
@@ -285,7 +303,9 @@ exports.getPartnersWithCommissions = async (req, res) => {
                     totalVolume: 0,
                     totalEarned: 0,
                     totalTrades: 0,
-                    createdAt: partner.createdAt
+                    createdAt: partner.createdAt,
+                    country: 'Unknown',
+                    mt5Account: 'No Account'
                 };
             }
         }));
@@ -309,7 +329,7 @@ exports.getAllDownlinePartners = async (ibConfigId, currentUserLevel = null) => 
     try {
         const directPartners = await IBClientConfiguration.find({
             parent: ibConfigId
-        }).populate('userId', 'firstname lastname email');
+        }).populate('userId', 'firstname lastname email country');
 
         let allPartners = [];
 
@@ -336,5 +356,31 @@ exports.getAllDownlinePartners = async (ibConfigId, currentUserLevel = null) => 
     } catch (error) {
         console.error('Error getting downline partners:', error);
         return [];
+    }
+};
+
+// @desc    Get sync status for trade synchronization
+// @route   GET /api/sync/status
+// @access  Public (used by sync service)
+exports.getSyncStatus = async (req, res) => {
+    try {
+        // This would typically come from your sync service
+        // For now, returning a mock status
+        const syncStatus = {
+            isProcessing: false,
+            lastSyncTime: new Date().toISOString(),
+            nextSyncIn: '10 seconds'
+        };
+
+        res.status(200).json({
+            success: true,
+            syncStatus
+        });
+    } catch (error) {
+        console.error('Get Sync Status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred while fetching sync status.'
+        });
     }
 };

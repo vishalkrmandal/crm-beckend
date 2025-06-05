@@ -1,4 +1,4 @@
-// Backend/routes/client/commissionRoutes.js
+// Backend/routes/client/commissionRoutes.js - Enhanced Version
 const express = require('express');
 const router = express.Router();
 const {
@@ -6,11 +6,15 @@ const {
     getCommissionSummary,
     getCommissionBreakdown,
     getPartnerCommissions,
-    getPartnersWithCommissions
+    getPartnersWithCommissions,
+    getSyncStatus
 } = require('../../controllers/commissionController');
 const { protect } = require('../../middlewares/auth');
 
-// Apply authentication middleware to all routes
+// Public route for sync status (used by frontend to check sync progress)
+router.get('/sync/status', getSyncStatus);
+
+// Apply authentication middleware to protected routes
 router.use(protect);
 
 // @route   GET /api/ibclients/commission/trade-commissions

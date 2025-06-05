@@ -17,6 +17,10 @@ const IBClientConfigurationSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    IBbalance: {
+        type: Number,
+        default: 0
+    },
     status: {
         type: String,
         enum: ['pending', 'active', 'inactive'],
