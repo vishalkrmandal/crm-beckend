@@ -58,12 +58,24 @@ const io = setupWebSocket(server);
 // Middleware
 app.use(express.json());
 // app.use(cors({
+//    origin: "*",
 //   origin: config.CLIENT_URL,
 //   credentials: true
 // }));
 
+// app.use(cors({
+//   origin: "*"
+// }));
+
 app.use(cors({
-  origin: "*"
+  origin: [
+    config.CLIENT_URL,            // https://raisecrm.vercel.app
+    'http://localhost:5173',
+    'https://raisecrm.vercel.app',
+    config.SERVER_URL,                    // https://vishal-test.testcrm.top
+    'https://vishal-test.testcrm.top'     // Ensure this matches exactly
+  ],
+  credentials: true,
 }));
 
 // Logging in development
