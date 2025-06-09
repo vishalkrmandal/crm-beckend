@@ -57,9 +57,13 @@ const io = setupWebSocket(server);
 
 // Middleware
 app.use(express.json());
+// app.use(cors({
+//   origin: config.CLIENT_URL,
+//   credentials: true
+// }));
+
 app.use(cors({
-  origin: config.CLIENT_URL,
-  credentials: true
+  origin: "*"
 }));
 
 // Logging in development
