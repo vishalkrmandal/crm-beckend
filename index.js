@@ -58,28 +58,32 @@ const io = setupWebSocket(server);
 // Middleware
 app.use(express.json());
 // app.use(cors({
-//    origin: "*",
-//   origin: config.CLIENT_URL,
-//   credentials: true
-// }));
-
-// app.use(cors({
-//   origin: "*"
+//   // origin: "*",
+//   origin: [config.CLIENT_URL,
+//     'https://raisecrm.vercel.app',
+//   ],
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 // }));
 
 app.use(cors({
-  origin: [
-    config.CLIENT_URL,            // https://raisecrm.vercel.app
-    'http://localhost:5173',
-    'https://raisecrm.vercel.app',
-    config.SERVER_URL,                    // https://vishal-test.testcrm.top
-    'https://vishal-test.testcrm.top'     // Ensure this matches exactly
-  ],
-  credentials: true,
+  origin: "*"
 }));
 
+// app.use(cors({
+//   origin: [
+//     config.CLIENT_URL,            // https://raisecrm.vercel.app
+//     'http://localhost:5173',
+//     'https://raisecrm.vercel.app',
+//     config.SERVER_URL,                    // https://vishal-test.testcrm.top
+//     'https://vishal-test.testcrm.top'     // Ensure this matches exactly
+//   ],
+//   credentials: true,
+// }));
+
 // Logging in development
-if (config.NODE_ENV === 'development') {
+if (config.NODE_ENV === 'production') {
   app.use(morgan('dev'));
 }
 

@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 module.exports = {
-    NODE_ENV: process.env.NODE_ENV || 'development',
+    NODE_ENV: process.env.NODE_ENV || 'production',
     PORT: process.env.PORT || 5000,
     MONGO_URI: process.env.MONGO_URI,
     JWT_SECRET: process.env.JWT_SECRET,
