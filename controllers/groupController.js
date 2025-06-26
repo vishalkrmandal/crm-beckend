@@ -93,8 +93,10 @@ exports.deleteGroup = async (req, res, next) => {
 // @access  Private/Admin
 exports.getMt5Groups = async (req, res, next) => {
     try {
-        const response = await axios.get('http://api.infoapi.biz/api/mt5/GetGroups?Manager_Index=2');
+        const managerIndex = process.env.Manager_Index;
+        const mt5ApiUrl = process.env.MT5_API_URL;
 
+        const response = await axios.get(`${mt5ApiUrl}/GetGroups?Manager_Index=${managerIndex}`);
         res.status(200).json({
             success: true,
             data: response.data

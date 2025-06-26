@@ -7,7 +7,7 @@ const axios = require('axios');
 
 // MT5 API Configuration
 const MT5_API_BASE_URL = 'https://api.infoapi.biz/api/mt5';
-const MANAGER_INDEX = 2; // You might want to move this to environment variables
+const MANAGER_INDEX = 1; // You might want to move this to environment variables
 
 exports.getAllWithdrawals = async (req, res) => {
     console.log('Fetching all withdrawals...', req);
@@ -111,6 +111,17 @@ exports.approveWithdrawal = async (req, res) => {
         withdrawal.processedAmount = mt5Response.data.Amount;
         await withdrawal.save();
 
+        // Populate user data for notifications
+        await withdrawal.populate('user', 'firstname lastname email');
+
+        // Trigger notifications
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleWithdrawalStatusChange(
+                withdrawal.toObject(),
+                'Pending' // Previous status before approval
+            );
+        }
+
         console.log('Withdrawal updated:', withdrawal);
 
         // TODO: Send notification email to user
@@ -186,6 +197,17 @@ exports.rejectWithdrawal = async (req, res) => {
         withdrawal.rejectedDate = new Date();
         withdrawal.remarks = remarks;
         await withdrawal.save();
+
+        // Populate user data for notifications
+        await withdrawal.populate('user', 'firstname lastname email');
+
+        // Trigger notifications
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleWithdrawalStatusChange(
+                withdrawal.toObject(),
+                'Pending' // Previous status before rejection
+            );
+        }
 
         // TODO: Send notification email to user
 

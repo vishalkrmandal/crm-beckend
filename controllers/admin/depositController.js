@@ -293,8 +293,8 @@ exports.approveDeposit = async (req, res) => {
         }
 
         // Get Manager Index from environment variables
-        // const managerIndex = process.env.Manager_Index || '2';
-        const managerIndex = deposit.account.managerIndex || '2';
+        // const managerIndex = process.env.Manager_Index || '1';
+        const managerIndex = deposit.account.managerIndex || '1';
         const mt5Account = deposit.account.mt5Account;
         const totalAmount = deposit.amount + (bonus || 0);
 
@@ -377,6 +377,14 @@ exports.approveDeposit = async (req, res) => {
             // Save the changes
             await deposit.save();
 
+            // Trigger notifications
+            if (req.notificationTriggers) {
+                await req.notificationTriggers.handleDepositStatusChange(
+                    deposit.toObject(),
+                    'Pending' // Previous status before approval
+                );
+            }
+
             // Populate user information for the response
             await deposit.populate('user', 'firstname lastname email');
 
@@ -437,6 +445,14 @@ exports.rejectDeposit = async (req, res) => {
 
         // Save the changes
         await deposit.save();
+
+        // Trigger notifications
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleDepositStatusChange(
+                deposit.toObject(),
+                'Pending' // Previous status before rejection
+            );
+        }
 
         // Populate user information for the response
         await deposit.populate('user', 'firstname lastname email');

@@ -9,6 +9,7 @@ const path = require('path');
 const connectDB = require('./config/db');
 const config = require('./config/config');
 const setupWebSocket = require('./utils/socketServer');
+const cron = require('node-cron');
 
 // Import the trade sync service
 const tradeSyncService = require('./services/tradeSyncService');
@@ -43,6 +44,9 @@ const adminIBWithdrawalRoutes = require('./routes/admin/ibWithdrawalRoutes');
 // Import the new commission routes
 const commissionRoutes = require('./routes/client/commissionRoutes');
 
+// Import notification routes
+const { addNotificationTriggers } = require('./middlewares/notificationMiddleware');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Connect to MongoDB
 connectDB();
@@ -53,6 +57,9 @@ const server = http.createServer(app);
 
 // Set up WebSocket server
 const io = setupWebSocket(server);
+
+// Make io instance available to routes
+app.set('io', io);
 
 
 // Middleware
@@ -90,6 +97,16 @@ if (config.NODE_ENV === 'production') {
 // Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+
 // Sync status route (public) - Add this before authentication routes
 app.get('/api/sync/status', (req, res) => {
   try {
@@ -107,6 +124,8 @@ app.get('/api/sync/status', (req, res) => {
   }
 });
 
+// IMPORTANT: Add notification middleware BEFORE routes that need it
+app.use(addNotificationTriggers);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -136,13 +155,25 @@ app.use('/api/ibclients/ib-configurations', ibClientConfigurationRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/client/dashboard', clientDashboardRoutes);
 
-
 // Commission Routes - NEW
 app.use('/api/ibclients/commission', commissionRoutes);
 
 // Ticket routes
 app.use('/api/tickets', ticketRoutes);
 
+// Add this route after existing routes:
+app.use('/api/notifications', notificationRoutes);
+
+// Schedule notification cleanup (runs daily at 2 AM)
+cron.schedule('0 2 * * * * *', async () => {
+  try {
+    console.log('Running scheduled notification cleanup...');
+    const cleanedCount = await io.notificationService.cleanupOldNotifications(90);
+    console.log(`Notification cleanup completed. Removed ${cleanedCount} old notifications.`);
+  } catch (error) {
+    console.error('Scheduled notification cleanup failed:', error);
+  }
+});
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -151,6 +182,15 @@ app.use((err, req, res, next) => {
     success: false,
     message: err.message,
     stack: config.NODE_ENV === 'production' ? '🥞' : err.stack
+  });
+});
+
+
+// Handle 404 routes
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
   });
 });
 

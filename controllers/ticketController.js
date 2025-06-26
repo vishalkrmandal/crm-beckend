@@ -52,6 +52,17 @@ exports.createTicket = async (req, res, next) => {
         // Save the ticket
         await ticket.save();
 
+        // Populate ticket data for notifications
+        await ticket.populate('createdBy', 'firstname lastname email');
+
+        // Trigger notifications
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleTicketUpdate(
+                ticket.toObject(),
+                'created'
+            );
+        }
+
         // Create initial message from the creator
         const message = new Message({
             ticketId: ticket._id,
@@ -251,6 +262,17 @@ exports.updateTicket = async (req, res, next) => {
         if (oldStatus !== ticket.status) {
             const user = await User.findById(ticket.createdBy);
 
+            // Populate ticket data for notifications
+            await ticket.populate('createdBy', 'firstname lastname email');
+
+            // Trigger notifications for status change
+            if (oldStatus !== ticket.status && req.notificationTriggers) {
+                await req.notificationTriggers.handleTicketUpdate(
+                    ticket.toObject(),
+                    'status_changed'
+                );
+            }
+
             if (user) {
                 await sendEmail({
                     email: user.email,
@@ -329,6 +351,17 @@ exports.addMessage = async (req, res, next) => {
         ticket.messages.push(message._id);
         ticket.updatedAt = Date.now();
         await ticket.save();
+
+        // Populate ticket data for notifications
+        await ticket.populate('createdBy', 'firstname lastname email');
+
+        // Trigger notifications for new message
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleTicketMessageAdded(
+                populatedMessage.toObject(),
+                ticket.toObject()
+            );
+        }
 
         // Populate message with sender info
         const populatedMessage = await Message.findById(message._id)

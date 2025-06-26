@@ -58,6 +58,20 @@ exports.createWithdrawal = async (req, res, next) => {
             status: 'Pending'
         });
 
+        // Populate required fields for notifications
+        await withdrawal.populate([
+            { path: 'user', select: 'firstname lastname email' },
+            { path: 'account', select: 'mt5Account' }
+        ]);
+
+        // Trigger notifications
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleWithdrawalStatusChange(
+                withdrawal.toObject(),
+                null // No previous status for new withdrawals
+            );
+        }
+
         res.status(201).json({
             success: true,
             data: withdrawal

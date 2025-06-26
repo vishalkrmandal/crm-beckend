@@ -49,6 +49,14 @@ exports.createIBConfiguration = async (req, res) => {
 
                 console.log('Updated existing IB configuration with referral code:', referralCode);
 
+                // Trigger notifications for IB activation
+                if (req.notificationTriggers) {
+                    await req.notificationTriggers.handleNewUserSignup(
+                        req.user,
+                        existingConfig.toObject()
+                    );
+                }
+
                 return res.status(200).json({
                     success: true,
                     message: 'IB configuration activated successfully with referral code',
@@ -120,6 +128,25 @@ exports.createIBConfiguration = async (req, res) => {
         });
 
         console.log('Created new IB configuration with referral code:', referralCode);
+
+        // Check if user was referred by someone and notify referrer
+        if (parentIB) {
+            const referrer = await User.findById(parentIB.userId).select('firstname lastname email');
+            if (referrer && req.notificationTriggers) {
+                await req.notificationTriggers.handleNewReferral(
+                    ibConfiguration.toObject(),
+                    referrer
+                );
+            }
+        }
+
+        // Trigger notifications for new IB signup
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleNewUserSignup(
+                req.user,
+                ibConfiguration.toObject()
+            );
+        }
 
         res.status(201).json({
             success: true,

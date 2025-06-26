@@ -1,5 +1,4 @@
 // backend/models/Ticket.js
-// backend/models/Ticket.js (updated with fix)
 const mongoose = require('mongoose');
 
 const TicketSchema = new mongoose.Schema({

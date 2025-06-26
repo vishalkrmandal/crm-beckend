@@ -142,6 +142,17 @@ exports.updatePersonalInfo = async (req, res) => {
             profile = await Profile.create(updateData);
         }
 
+        // Populate user data for notifications
+        await profile.populate('user', 'firstname lastname email');
+
+        // Trigger notifications for admin about profile update
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleProfileUpdate(
+                profile.toObject(),
+                req.user.id
+            );
+        }
+
         res.status(200).json({
             success: true,
             message: 'Personal information updated successfully',
@@ -191,6 +202,17 @@ exports.updateAccountDetails = async (req, res) => {
             });
         }
 
+        // Populate user data for notifications
+        await profile.populate('user', 'firstname lastname email');
+
+        // Trigger notifications for admin about profile update
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleProfileUpdate(
+                profile.toObject(),
+                req.user.id
+            );
+        }
+
         res.status(200).json({
             success: true,
             message: 'Account details updated successfully',
@@ -238,6 +260,17 @@ exports.updateWalletDetails = async (req, res) => {
                 user: req.user.id,
                 walletDetails
             });
+        }
+
+        // Populate user data for notifications
+        await profile.populate('user', 'firstname lastname email');
+
+        // Trigger notifications for admin about profile update
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleProfileUpdate(
+                profile.toObject(),
+                req.user.id
+            );
         }
 
         res.status(200).json({

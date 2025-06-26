@@ -130,6 +130,17 @@ exports.createAccount = async (req, res) => {
             managerIndex: "1"
         });
 
+        // Populate user data for notifications
+        await account.populate('user', 'firstname lastname email');
+
+        // Trigger notifications for new account creation
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleAccountCreated({
+                ...account.toObject(),
+                user: req.user.id
+            });
+        }
+
         res.status(201).json({
             success: true,
             data: account

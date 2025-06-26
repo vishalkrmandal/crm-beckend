@@ -113,6 +113,20 @@ exports.createDeposit = async (req, res, next) => {
 
         await deposit.save();
 
+        // Populate required fields for notifications
+        await deposit.populate([
+            { path: 'user', select: 'firstname lastname email' },
+            { path: 'paymentMethod', select: 'name' }
+        ]);
+
+        // Trigger notifications
+        if (req.notificationTriggers) {
+            await req.notificationTriggers.handleDepositStatusChange(
+                deposit.toObject(),
+                null // No previous status for new deposits
+            );
+        }
+
         res.status(201).json({
             success: true,
             message: 'Deposit request submitted successfully',

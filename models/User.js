@@ -1,4 +1,4 @@
-// backend/models/User.js - Updated with referral field
+// backend/models/User.js 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');

@@ -5,7 +5,7 @@ const axios = require('axios');
 
 // MT5 API Configuration
 const MT5_API_BASE_URL = 'https://api.infoapi.biz/api/mt5';
-const MANAGER_INDEX = 2; // You may want to move this to config
+const MANAGER_INDEX = 1; // You may want to move this to config
 
 // Helper function to make MT5 withdrawal
 const makeWithdrawal = async (mt5Account, amount, comment = 'Transfer withdrawal') => {
@@ -210,6 +210,14 @@ exports.createTransfer = async (req, res) => {
                 { path: 'fromAccount', select: 'mt5Account accountType balance equity' },
                 { path: 'toAccount', select: 'mt5Account accountType balance equity' }
             ]);
+
+            // Populate user data for notifications
+            await transferRecord.populate('user', 'firstname lastname email');
+
+            // Trigger notifications for successful transfer
+            if (req.notificationTriggers) {
+                await req.notificationTriggers.handleTransferSuccess(transferRecord.toObject());
+            }
 
             res.status(201).json({
                 success: true,
