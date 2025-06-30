@@ -89,43 +89,43 @@ exports.createTicket = async (req, res, next) => {
         await ticket.save();
 
         // If admin created the ticket for a client, notify the client
-        if (clientId && req.user.role !== 'client') {
-            const client = await User.findById(clientId);
+        // if (clientId && req.user.role !== 'client') {
+        //     const client = await User.findById(clientId);
 
-            if (client) {
-                await sendEmail({
-                    email: client.email,
-                    subject: `New Support Ticket Created: ${ticket.ticketNumber}`,
-                    message: `
-                        <h1>New Support Ticket Created</h1>
-                        <p>A support ticket has been created on your behalf.</p>
-                        <p><strong>Ticket Number:</strong> ${ticket.ticketNumber}</p>
-                        <p><strong>Subject:</strong> ${subject}</p>
-                        <p><strong>Description:</strong> ${description}</p>
-                        <p>You can view the details and respond in your client portal.</p>
-                    `
-                });
-            }
-        } else {
-            // If client created the ticket, notify admins
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+        //     if (client) {
+        //         await sendEmail({
+        //             email: client.email,
+        //             subject: `New Support Ticket Created: ${ticket.ticketNumber}`,
+        //             message: `
+        //                 <h1>New Support Ticket Created</h1>
+        //                 <p>A support ticket has been created on your behalf.</p>
+        //                 <p><strong>Ticket Number:</strong> ${ticket.ticketNumber}</p>
+        //                 <p><strong>Subject:</strong> ${subject}</p>
+        //                 <p><strong>Description:</strong> ${description}</p>
+        //                 <p>You can view the details and respond in your client portal.</p>
+        //             `
+        //         });
+        //     }
+        // } else {
+        //     // If client created the ticket, notify admins
+        //     const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
 
-            // Send email notification to admins
-            for (const admin of admins) {
-                await sendEmail({
-                    email: admin.email,
-                    subject: 'New Support Ticket Created',
-                    message: `
-                        <h1>New Ticket: ${ticket.ticketNumber}</h1>
-                        <p><strong>Subject:</strong> ${subject}</p>
-                        <p><strong>Category:</strong> ${category}</p>
-                        <p><strong>Created by:</strong> ${req.user.firstname} ${req.user.lastname}</p>
-                        <p><strong>Description:</strong> ${description}</p>
-                        <p>Please log in to the admin portal to respond.</p>
-                    `
-                });
-            }
-        }
+        //     // Send email notification to admins
+        //     for (const admin of admins) {
+        //         await sendEmail({
+        //             email: admin.email,
+        //             subject: 'New Support Ticket Created',
+        //             message: `
+        //                 <h1>New Ticket: ${ticket.ticketNumber}</h1>
+        //                 <p><strong>Subject:</strong> ${subject}</p>
+        //                 <p><strong>Category:</strong> ${category}</p>
+        //                 <p><strong>Created by:</strong> ${req.user.firstname} ${req.user.lastname}</p>
+        //                 <p><strong>Description:</strong> ${description}</p>
+        //                 <p>Please log in to the admin portal to respond.</p>
+        //             `
+        //         });
+        //     }
+        // }
 
         res.status(201).json({
             success: true,
@@ -236,7 +236,7 @@ exports.getTicketById = async (req, res, next) => {
 
 // @desc    Update a ticket
 // @route   PUT /api/tickets/:id
-// @access  Private (Admin and SuperAdmin only)
+// @access  Private (Admin, SuperAdmin, and Agent)
 exports.updateTicket = async (req, res, next) => {
     try {
         let ticket = await Ticket.findById(req.params.id);
@@ -269,23 +269,23 @@ exports.updateTicket = async (req, res, next) => {
             if (oldStatus !== ticket.status && req.notificationTriggers) {
                 await req.notificationTriggers.handleTicketUpdate(
                     ticket.toObject(),
-                    'status_changed'
+                    'status changed'
                 );
             }
 
-            if (user) {
-                await sendEmail({
-                    email: user.email,
-                    subject: `Ticket Status Updated: ${ticket.ticketNumber}`,
-                    message: `
-                        <h1>Ticket Status Update</h1>
-                        <p>Your ticket <strong>${ticket.ticketNumber}</strong> has been updated.</p>
-                        <p><strong>Subject:</strong> ${ticket.subject}</p>
-                        <p><strong>New Status:</strong> ${ticket.status}</p>
-                        <p>You can view the details in your client portal.</p>
-                    `
-                });
-            }
+            // if (user) {
+            //     await sendEmail({
+            //         email: user.email,
+            //         subject: `Ticket Status Updated: ${ticket.ticketNumber}`,
+            //         message: `
+            //             <h1>Ticket Status Update</h1>
+            //             <p>Your ticket <strong>${ticket.ticketNumber}</strong> has been updated.</p>
+            //             <p><strong>Subject:</strong> ${ticket.subject}</p>
+            //             <p><strong>New Status:</strong> ${ticket.status}</p>
+            //             <p>You can view the details in your client portal.</p>
+            //         `
+            //     });
+            // }
         }
 
         res.status(200).json({
@@ -352,6 +352,12 @@ exports.addMessage = async (req, res, next) => {
         ticket.updatedAt = Date.now();
         await ticket.save();
 
+        // Populate message with sender info
+        const populatedMessage = await Message.findById(message._id)
+            .populate('sender', 'firstname lastname email role')
+            .populate('attachments');
+
+
         // Populate ticket data for notifications
         await ticket.populate('createdBy', 'firstname lastname email');
 
@@ -363,39 +369,34 @@ exports.addMessage = async (req, res, next) => {
             );
         }
 
-        // Populate message with sender info
-        const populatedMessage = await Message.findById(message._id)
-            .populate('sender', 'firstname lastname email role')
-            .populate('attachments');
-
         // Send email notification
-        let recipient;
-        if (req.user.role === 'client') {
-            // If client sent message, notify assigned admin
-            if (ticket.assignedTo) {
-                recipient = await User.findById(ticket.assignedTo);
-            } else {
-                // If no assigned admin, find an admin
-                recipient = await User.findOne({ role: 'admin' });
-            }
-        } else {
-            // If admin sent message, notify client
-            recipient = await User.findById(ticket.createdBy);
-        }
+        // let recipient;
+        // if (req.user.role === 'client') {
+        //     // If client sent message, notify assigned admin
+        //     if (ticket.assignedTo) {
+        //         recipient = await User.findById(ticket.assignedTo);
+        //     } else {
+        //         // If no assigned admin, find an admin
+        //         recipient = await User.findOne({ role: 'admin' });
+        //     }
+        // } else {
+        //     // If admin sent message, notify client
+        //     recipient = await User.findById(ticket.createdBy);
+        // }
 
-        if (recipient) {
-            await sendEmail({
-                email: recipient.email,
-                subject: `New Message on Ticket: ${ticket.ticketNumber}`,
-                message: `
-                    <h1>New Message on Ticket ${ticket.ticketNumber}</h1>
-                    <p><strong>Subject:</strong> ${ticket.subject}</p>
-                    <p><strong>Message from:</strong> ${req.user.firstname} ${req.user.lastname}</p>
-                    <p><strong>Message:</strong> ${content}</p>
-                    <p>Please log in to the portal to respond.</p>
-                `
-            });
-        }
+        // if (recipient) {
+        //     await sendEmail({
+        //         email: recipient.email,
+        //         subject: `New Message on Ticket: ${ticket.ticketNumber}`,
+        //         message: `
+        //             <h1>New Message on Ticket ${ticket.ticketNumber}</h1>
+        //             <p><strong>Subject:</strong> ${ticket.subject}</p>
+        //             <p><strong>Message from:</strong> ${req.user.firstname} ${req.user.lastname}</p>
+        //             <p><strong>Message:</strong> ${content}</p>
+        //             <p>Please log in to the portal to respond.</p>
+        //         `
+        //     });
+        // }
 
         res.status(201).json({
             success: true,

@@ -289,6 +289,8 @@ class NotificationService {
                         <h3>🎫 Ticket Information</h3>
                         <p><strong>Ticket Number:</strong> ${data.ticketNumber || 'N/A'}</p>
                         <p><strong>Subject:</strong> ${data.subject || 'N/A'}</p>
+                        <p><strong>Type:</strong> ${data.updateType || 'N/A'}</p>
+                        <p><strong>Message:</strong> ${data.messagePreview || 'N/A'}</p>
                         <p><strong>Status:</strong> ${data.status || 'N/A'}</p>
                     </div>
                 `);
