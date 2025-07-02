@@ -67,6 +67,60 @@ exports.adminSignup = async (req, res, next) => {
     }
 };
 
+// @desc    Register a new agent user (admin, superadmin)
+// @route   POST /api/auth/agent/signup
+// @access  Private (admin, superadmin)
+exports.agentSignup = async (req, res, next) => {
+    try {
+        const { firstname, lastname, email, password, country, phone, dateofbirth } = req.body;
+
+        // Ensure role is set to agent
+        const role = 'agent';
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'User with this email already exists'
+            });
+        }
+
+        // Create new agent user
+        const user = await User.create({
+            firstname,
+            lastname,
+            email,
+            password,
+            country: {
+                name: country[0],
+                state: country[1] || ''
+            },
+            phone,
+            dateofbirth: new Date(dateofbirth),
+            role
+        });
+
+        // Generate verification token
+        const verificationToken = user.generateEmailVerificationToken();
+        await user.save();
+
+        // Send verification email
+        await sendVerificationEmail(user, verificationToken);
+
+        res.status(201).json({
+            success: true,
+            message: 'Agent registration successful! Please check your email to verify your account.'
+        });
+    } catch (error) {
+        console.error('Agent signup error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred during agent registration.'
+        });
+    }
+};
+
 // @desc    Register a new user
 // @route   POST /api/auth/signup
 // @access  Public
@@ -383,11 +437,11 @@ exports.impersonateClient = async (req, res, next) => {
             });
         }
 
-        // Ensure the user being impersonated is a client
-        if (clientUser.role !== 'client') {
+        // Ensure the user being impersonated is a client or agent
+        if (clientUser.role !== 'client' && clientUser.role !== 'agent') {
             return res.status(400).json({
                 success: false,
-                message: 'You can only impersonate client accounts'
+                message: 'You can only impersonate client or agent accounts'
             });
         }
 

@@ -15,7 +15,7 @@ const Account = require('../../models/client/Account');
 exports.getAllClients = async (req, res) => {
     try {
         // Get clients with their profiles
-        const users = await User.find({ role: 'client' }).select('-passwordResetToken -passwordResetExpires -emailVerificationToken -emailVerificationExpires');
+        const users = await User.find({ role: { $in: ['client', 'agent'] } }).select('-passwordResetToken -passwordResetExpires -emailVerificationToken -emailVerificationExpires');
 
         // Get all profiles
         const profiles = await Profile.find();
