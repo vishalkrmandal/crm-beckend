@@ -181,8 +181,9 @@ exports.getAccounts = async (req, res) => {
 // @access  Private
 exports.getAccount = async (req, res) => {
     try {
+        console.log("Fetching account with ID:", req.params.accountId);
         const account = await Account.findOne({
-            _id: req.params.id,
+            _id: req.params.accountId,
             user: req.user.id
         });
 

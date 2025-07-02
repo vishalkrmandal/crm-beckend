@@ -9,6 +9,6 @@ const {
 
 router.post('/create', protect, authorize('client'), createAccount);
 router.get('/', protect, getAccounts);
-router.get('/:id', protect, getAccount);
+router.get('/:accountId/refresh', protect, getAccount);
 
 module.exports = router;

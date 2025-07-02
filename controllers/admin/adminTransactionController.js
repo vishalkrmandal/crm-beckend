@@ -19,13 +19,13 @@ exports.getAllTransactions = async (req, res) => {
         };
 
         // Base URL for API requests
-        const baseUrl = process.env.API_BASE_URL || 'http://localhost:5000/api';
+        const baseUrl = process.env.API_BASE_URL || 'http://localhost:5000';
 
         // Fetch data from all three endpoints in parallel
         const [depositsResponse, withdrawalsResponse, transfersResponse] = await Promise.all([
-            axios.get(`${baseUrl}/admindeposits`, apiConfig),
-            axios.get(`${baseUrl}/adminwithdrawals`, apiConfig),
-            axios.get(`${baseUrl}/transfers`, apiConfig)
+            axios.get(`${baseUrl}/api/admindeposits`, apiConfig),
+            axios.get(`${baseUrl}/api/adminwithdrawals`, apiConfig),
+            axios.get(`${baseUrl}/api/transfers`, apiConfig)
         ]);
 
         // Extract data from responses
@@ -77,6 +77,7 @@ exports.getAllTransactions = async (req, res) => {
         }));
 
         // Format transfers
+        // Format transfers
         const formattedTransfers = transfersData.map(transfer => {
             // Get user name safely
             let userName = '';
@@ -88,6 +89,12 @@ exports.getAllTransactions = async (req, res) => {
                 }
             }
 
+            // Safe access to account data
+            const fromAccountNumber = transfer.fromAccount?.mt5Account || 'N/A';
+            const toAccountNumber = transfer.toAccount?.mt5Account || 'N/A';
+            const fromAccountType = transfer.fromAccount?.accountType || 'Unknown';
+            const toAccountType = transfer.toAccount?.accountType || 'Unknown';
+
             return {
                 id: transfer._id,
                 user: {
@@ -95,19 +102,18 @@ exports.getAllTransactions = async (req, res) => {
                     email: transfer.user ? transfer.user.email : '',
                 },
                 fromAccount: {
-                    accountNumber: transfer.fromAccount.mt5Account,
-                    planType: transfer.fromAccount.accountType
+                    accountNumber: fromAccountNumber,
+                    planType: fromAccountType
                 },
                 toAccount: {
-                    accountNumber: transfer.toAccount.mt5Account,
-                    planType: transfer.toAccount.accountType
+                    accountNumber: toAccountNumber,
+                    planType: toAccountType
                 },
-                accountNumber: `${transfer.fromAccount.mt5Account} → ${transfer.toAccount.mt5Account}`,
+                accountNumber: `${fromAccountNumber} → ${toAccountNumber}`,
                 amount: transfer.amount,
                 paymentMethod: 'Internal Transfer',
                 type: 'Transfer',
-                planType: `${transfer.fromAccount.accountType} → ${transfer.toAccount.accountType}`,
-                // document: false,
+                planType: `${fromAccountType} → ${toAccountType}`,
                 requestedOn: transfer.createdAt,
                 completedOn: transfer.updatedAt,
                 status: transfer.status

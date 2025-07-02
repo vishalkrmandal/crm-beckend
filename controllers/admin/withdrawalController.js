@@ -10,9 +10,9 @@ const MT5_API_BASE_URL = 'https://api.infoapi.biz/api/mt5';
 const MANAGER_INDEX = 1; // You might want to move this to environment variables
 
 exports.getAllWithdrawals = async (req, res) => {
-    console.log('Fetching all withdrawals...', req);
+
     try {
-        console.log('Fetching all withdrawals...', req.user);
+
         const withdrawals = await Withdrawal.find()
             .populate({
                 path: 'user',
@@ -24,7 +24,6 @@ exports.getAllWithdrawals = async (req, res) => {
             })
             .sort({ requestedDate: -1 });
 
-        console.log('Withdrawals:', withdrawals);
         res.status(200).json(withdrawals);
     } catch (error) {
         res.status(500).json({
@@ -67,7 +66,7 @@ exports.approveWithdrawal = async (req, res) => {
             });
         }
 
-        console.log('Calling MT5 API for withdrawal...');
+
 
         // Call MT5 API to execute withdrawal
         const mt5Response = await callMT5WithdrawAPI(
@@ -84,7 +83,7 @@ exports.approveWithdrawal = async (req, res) => {
             });
         }
 
-        console.log('MT5 API Response:', mt5Response.data);
+
 
         // Update account balance in database with the actual balance from MT5
         const updatedAccount = await Account.findByIdAndUpdate(
@@ -100,7 +99,7 @@ exports.approveWithdrawal = async (req, res) => {
             { new: true }
         );
 
-        console.log('Account updated:', updatedAccount);
+
 
         // Update withdrawal status with MT5 transaction details
         withdrawal.status = 'Approved';
@@ -121,8 +120,6 @@ exports.approveWithdrawal = async (req, res) => {
                 'Pending' // Previous status before approval
             );
         }
-
-        console.log('Withdrawal updated:', withdrawal);
 
         // TODO: Send notification email to user
 
@@ -236,14 +233,14 @@ async function callMT5WithdrawAPI(mt5Account, amount, comment) {
             Comment: comment
         };
 
-        console.log('Calling MT5 API with params:', params);
+
 
         const response = await axios.get(url, {
             params,
             timeout: 30000 // 30 second timeout
         });
 
-        console.log('MT5 API Raw Response:', response.data);
+
 
         // Check if the response indicates success
         if (response.data && response.data.status === 'success' && response.data.Result === true) {
