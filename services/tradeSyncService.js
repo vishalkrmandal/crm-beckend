@@ -12,8 +12,8 @@ class TradeSyncService {
     constructor() {
         this.isProcessing = false;
         this.lastSyncTime = new Date();
-        this.managerIndexes = ['1'];
-        this.apiBaseUrl = 'https://api.infoapi.biz/api/mt5';
+        this.managerIndexes = process.env.Manager_Index || 1;
+        this.apiBaseUrl = process.env.MT5_API_URL || 'https://api.infoapi.biz/api/mt5';
 
         this.syncModes = {
             INITIAL_SETUP: 365,

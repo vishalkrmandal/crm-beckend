@@ -2,6 +2,7 @@
 
 const Withdrawal = require('../../models/Withdrawal');
 const Account = require('../../models/client/Account');
+const axios = require('axios');
 
 // Create new withdrawal request
 exports.createWithdrawal = async (req, res, next) => {
@@ -15,7 +16,7 @@ exports.createWithdrawal = async (req, res, next) => {
             bankDetails,
             eWalletDetails
         } = req.body;
-
+        console.log('Withdrawal request body:', req.body);
         // Verify account exists and belongs to user
         const account = await Account.findOne({
             _id: accountId,
@@ -26,6 +27,18 @@ exports.createWithdrawal = async (req, res, next) => {
             return res.status(404).json({
                 success: false,
                 message: 'Account not found or does not belong to you'
+            });
+        }
+
+        const checkTradesUrl = `${process.env.MT5_API_URL}/GetOpenTradeByAccount?Manager_Index=${process.env.Manager_Index}&MT5Accont=${account.mt5Account}`;
+        const tradesResponse = await axios.get(checkTradesUrl);
+
+        // If trades are found (not error status), prevent withdrawal
+        if (tradesResponse.data.status !== 'error') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot process withdrawal. You have open trades on this account. Please close all trades before withdrawing funds.',
+                hasOpenTrades: true
             });
         }
 
@@ -77,6 +90,7 @@ exports.createWithdrawal = async (req, res, next) => {
             data: withdrawal
         });
     } catch (error) {
+        console.error('Error checking trades:', error);
         next(error);
     }
 };
@@ -165,60 +179,80 @@ exports.getWithdrawalById = async (req, res, next) => {
     }
 };
 
-// // Update withdrawal status (admin)
-// exports.updateWithdrawalStatus = async (req, res, next) => {
-//     try {
-//         const { status, remarks } = req.body;
-
-//         // Only admin can update status
-//         if (req.user.role !== 'admin') {
-//             return res.status(403).json({
-//                 success: false,
-//                 message: 'Not authorized to update withdrawal status'
-//             });
-//         }
-
-//         const withdrawal = await Withdrawal.findById(req.params.id);
-
-//         if (!withdrawal) {
-//             return res.status(404).json({
-//                 success: false,
-//                 message: 'Withdrawal not found'
-//             });
-//         }
-
-//         // Update status
-//         withdrawal.status = status;
-//         if (remarks) withdrawal.remarks = remarks;
-
-//         // Update relevant date fields
-//         if (status === 'Completed') {
-//             withdrawal.completedDate = Date.now();
-
-//             // Update account balance if status is Completed
-//             const account = await Account.findById(withdrawal.account);
-//             if (account) {
-//                 account.balance -= withdrawal.amount;
-//                 await account.save();
-//             }
-//         } else if (status === 'Rejected') {
-//             withdrawal.rejectedDate = Date.now();
-//         }
-
-//         await withdrawal.save();
-
-//         res.status(200).json({
-//             success: true,
-//             data: withdrawal
-//         });
-//     } catch (error) {
-//         next(error);
-//     }
-// };
 
 // Get last used withdrawal method for a user
 exports.getLastWithdrawalMethod = async (req, res, next) => {
     try {
+
+        const Profile = require('../../models/client/Profile'); // Adjust path as needed
+        const profile = await Profile.findOne({ user: req.user.id });
+
+        if (profile && (profile.bankDetails || profile.walletDetails)) {
+            // Return profile-based payment methods
+            let paymentMethods = [];
+
+            // Add bank details if available
+            if (profile.bankDetails && profile.bankDetails.bankName) {
+                paymentMethods.push({
+                    type: 'bank',
+                    details: {
+                        ...profile.bankDetails,
+                        ifscCode: profile.bankDetails.ifscSwiftCode
+                    }
+                });
+            }
+
+            // Add wallet details if available
+            if (profile.walletDetails) {
+                const wallets = [];
+                if (profile.walletDetails.tetherWalletAddress) {
+                    wallets.push({
+                        type: 'usdt',
+                        name: 'USDT',
+                        address: profile.walletDetails.tetherWalletAddress
+                    });
+                }
+                if (profile.walletDetails.ethWalletAddress) {
+                    wallets.push({
+                        type: 'ethereum',
+                        name: 'Ethereum',
+                        address: profile.walletDetails.ethWalletAddress
+                    });
+                }
+                if (profile.walletDetails.trxWalletAddress) {
+                    wallets.push({
+                        type: 'tron',
+                        name: 'TRON',
+                        address: profile.walletDetails.trxWalletAddress
+                    });
+                }
+                // Add bitcoin if you have it in profile
+                // if (profile.walletDetails.bitcoinWalletAddress) {
+                //     wallets.push({
+                //         type: 'bitcoin',
+                //         name: 'Bitcoin',
+                //         address: profile.walletDetails.bitcoinWalletAddress
+                //     });
+                // }
+
+                if (wallets.length > 0) {
+                    paymentMethods.push({
+                        type: 'ewallet',
+                        wallets: wallets
+                    });
+                }
+            }
+            console.log('Returning profile payment methods:', paymentMethods);
+            return res.status(200).json({
+                success: true,
+                data: {
+                    source: 'profile',
+                    paymentMethods: paymentMethods
+                }
+            });
+        }
+
+        // If no profile details, fall back to last withdrawal method
         const lastWithdrawal = await Withdrawal.findOne({ user: req.user.id })
             .sort({ createdAt: -1 });
 
@@ -241,6 +275,7 @@ exports.getLastWithdrawalMethod = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: {
+                source: 'withdrawal',
                 paymentMethod: lastWithdrawal.paymentMethod,
                 paymentDetails
             }

@@ -79,7 +79,7 @@ exports.getUserTransactions = async (req, res) => {
                         deposit.status === 'Rejected' ? deposit.rejectedDate :
                             deposit.createdAt,
                 type: 'Deposit',
-                description: `${deposit.paymentMethod?.name || 'Unknown'} Deposit`,
+                description: `${deposit.paymentType} Deposit`,
                 amount: `+$${deposit.amount.toFixed(2)}`,
                 account: deposit.account?.mt5Account || deposit.accountNumber || 'Unknown',
                 accountName: deposit.account?.name || 'Unknown',
@@ -258,7 +258,7 @@ exports.getUserTransactions = async (req, res) => {
     }
 };
 
-// Export transactions to Excel/PDF
+// Export transactions data (JSON only)
 exports.exportTransactions = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -267,12 +267,8 @@ exports.exportTransactions = async (req, res) => {
             status = 'all',
             startDate,
             endDate,
-            search = '',
-            format = 'excel' // 'excel' or 'pdf'
+            search = ''
         } = req.query;
-
-        // Reuse the same logic to get transactions from getUserTransactions
-        // (Code to fetch transactions omitted for brevity - it's identical to getUserTransactions)
 
         // Date filtering
         const dateFilter = {};
@@ -283,8 +279,167 @@ exports.exportTransactions = async (req, res) => {
             };
         }
 
-        // Similar logic as in getUserTransactions to fetch and combine transactions
-        // (Code omitted for brevity)
+        // Prepare status filter
+        const statusFilter = status !== 'all' ? { status } : {};
+
+        // Search regex
+        const searchRegex = search ? new RegExp(search, 'i') : null;
+
+        // Initialize results
+        let deposits = [];
+        let withdrawals = [];
+        let transfers = [];
+
+        // Get transactions by type (same logic as getUserTransactions)
+        if (type === 'all' || type === 'deposit') {
+            const depositQuery = {
+                user: userId,
+                ...dateFilter,
+                ...statusFilter
+            };
+
+            if (searchRegex) {
+                depositQuery.$or = [
+                    { 'accountNumber': searchRegex },
+                    { 'paymentType': searchRegex },
+                    { 'notes': searchRegex },
+                    { 'remarks': searchRegex }
+                ];
+            }
+
+            deposits = await Deposit.find(depositQuery)
+                .populate({
+                    path: 'account',
+                    select: 'mt5Account name accountType'
+                })
+                .populate({
+                    path: 'paymentMethod',
+                    select: 'name'
+                })
+                .lean();
+
+            deposits = deposits.map(deposit => ({
+                _id: deposit._id,
+                date: deposit.status === 'Pending' ? deposit.requestedDate :
+                    deposit.status === 'Approved' ? deposit.approvedDate :
+                        deposit.status === 'Rejected' ? deposit.rejectedDate :
+                            deposit.createdAt,
+                type: 'Deposit',
+                description: `${deposit.paymentType} Deposit`,
+                amount: `+$${deposit.amount.toFixed(2)}`,
+                account: deposit.account?.mt5Account || deposit.accountNumber || 'Unknown',
+                status: deposit.status,
+                createdAt: deposit.createdAt
+            }));
+        }
+
+        if (type === 'all' || type === 'withdrawal') {
+            const withdrawalQuery = {
+                user: userId,
+                ...dateFilter,
+                ...statusFilter
+            };
+
+            if (searchRegex) {
+                withdrawalQuery.$or = [
+                    { 'accountNumber': searchRegex },
+                    { 'paymentMethod': searchRegex },
+                    { 'remarks': searchRegex },
+                    { 'bankDetails.bankName': searchRegex },
+                    { 'bankDetails.accountHolderName': searchRegex },
+                    { 'eWalletDetails.type': searchRegex }
+                ];
+            }
+
+            withdrawals = await Withdrawal.find(withdrawalQuery)
+                .populate({
+                    path: 'account',
+                    select: 'mt5Account name accountType'
+                })
+                .lean();
+
+            withdrawals = withdrawals.map(withdrawal => ({
+                _id: withdrawal._id,
+                date: withdrawal.status === 'Pending' ? withdrawal.requestedDate :
+                    withdrawal.status === 'Approved' ? withdrawal.approvedDate :
+                        withdrawal.status === 'Rejected' ? withdrawal.rejectedDate :
+                            withdrawal.createdAt,
+                type: 'Withdrawal',
+                description: `${withdrawal.paymentMethod} Withdrawal`,
+                amount: `-$${withdrawal.amount.toFixed(2)}`,
+                account: withdrawal.account?.mt5Account || withdrawal.accountNumber || 'Unknown',
+                status: withdrawal.status,
+                createdAt: withdrawal.createdAt
+            }));
+        }
+
+        if (type === 'all' || type === 'transfer') {
+            const transferQuery = {
+                user: userId,
+                ...dateFilter,
+                ...statusFilter
+            };
+
+            transfers = await Transfer.find(transferQuery)
+                .populate({
+                    path: 'fromAccount',
+                    select: 'mt5Account name accountType'
+                })
+                .populate({
+                    path: 'toAccount',
+                    select: 'mt5Account name accountType'
+                })
+                .lean();
+
+            const transformedTransfers = [];
+            transfers.forEach(transfer => {
+                if (searchRegex &&
+                    !transfer.fromAccount?.mt5Account?.match(searchRegex) &&
+                    !transfer.toAccount?.mt5Account?.match(searchRegex)) {
+                    return;
+                }
+
+                transformedTransfers.push({
+                    _id: `${transfer._id}-from`,
+                    date: transfer.createdAt,
+                    type: 'Transfer',
+                    description: 'Internal Transfer',
+                    amount: `-$${transfer.amount.toFixed(2)}`,
+                    account: transfer.fromAccount?.mt5Account || 'Unknown',
+                    status: transfer.status,
+                    createdAt: transfer.createdAt
+                });
+
+                transformedTransfers.push({
+                    _id: `${transfer._id}-to`,
+                    date: transfer.createdAt,
+                    type: 'Transfer',
+                    description: 'Internal Transfer',
+                    amount: `+$${transfer.amount.toFixed(2)}`,
+                    account: transfer.toAccount?.mt5Account || 'Unknown',
+                    status: transfer.status,
+                    createdAt: transfer.createdAt
+                });
+            });
+
+            transfers = transformedTransfers;
+        }
+
+        // Combine all transactions
+        let allTransactions = [...deposits, ...withdrawals, ...transfers];
+
+        // Apply general search if provided
+        if (searchRegex && type === 'all') {
+            allTransactions = allTransactions.filter(transaction =>
+                transaction.account.match(searchRegex) ||
+                transaction.description.match(searchRegex) ||
+                transaction.status.match(searchRegex) ||
+                transaction.type.match(searchRegex)
+            );
+        }
+
+        // Sort by date (most recent first)
+        allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         // Format dates for export
         allTransactions.forEach(transaction => {
@@ -299,40 +454,16 @@ exports.exportTransactions = async (req, res) => {
             });
         });
 
-        // Generate export file based on format
-        let buffer;
-        let filename;
-        let contentType;
-
-        const dateStr = new Date().toISOString().split('T')[0];
-
-        if (format === 'excel') {
-            buffer = await generateExcel(allTransactions);
-            filename = `transaction_history_${dateStr}.xlsx`;
-            contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        } else if (format === 'pdf') {
-            buffer = await generatePDF(allTransactions);
-            filename = `transaction_history_${dateStr}.pdf`;
-            contentType = 'application/pdf';
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid export format specified'
-            });
-        }
-
-        // Set response headers for file download
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-
-        // Send file buffer
-        return res.send(buffer);
+        res.json({
+            success: true,
+            data: allTransactions
+        });
 
     } catch (error) {
         console.error('Error exporting transactions:', error);
         res.status(500).json({
             success: false,
-            message: 'Error exporting transactions',
+            message: 'Error fetching transactions for export',
             error: error.message
         });
     }

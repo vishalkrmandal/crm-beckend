@@ -17,6 +17,11 @@ const IBAdminConfigurationSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Bonus amount per lot is required'],
         min: 0
+    },
+    defaultTimeInSeconds: {
+        type: Number,
+        default: 0,
+        min: 0
     }
 }, { timestamps: true });
 

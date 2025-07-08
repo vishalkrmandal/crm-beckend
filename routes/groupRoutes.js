@@ -13,13 +13,13 @@ const router = express.Router();
 
 router.route('/')
     .get(getGroups)
-    .post(protect, authorize('admin'), createGroup);
+    .post(protect, authorize('admin', 'superadmin'), createGroup);
 
 router.route('/:id')
-    .put(protect, authorize('admin'), updateGroup)
-    .delete(protect, authorize('admin'), deleteGroup);
+    .put(protect, authorize('admin', 'superadmin'), updateGroup)
+    .delete(protect, authorize('admin', 'superadmin'), deleteGroup);
 
 router.route('/mt5-groups')
-    .get(protect, authorize('admin'), getMt5Groups);
+    .get(protect, authorize('superadmin'), getMt5Groups);
 
 module.exports = router;

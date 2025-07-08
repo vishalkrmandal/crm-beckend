@@ -8,7 +8,6 @@ const {
     getWithdrawalById,
     getWithdrawalsByAccount,
     getWithdrawalsByUser,
-    updateWithdrawalStatus,
     getLastWithdrawalMethod
 } = require('../../controllers/client/withdrawalClientController');
 const { protect } = require('../../middlewares/auth');
@@ -21,7 +20,5 @@ router.get('/account/:accountId', protect, getWithdrawalsByAccount);
 router.get('/last-method', protect, getLastWithdrawalMethod);
 router.get('/:id', protect, getWithdrawalById);
 
-// // Admin routes
-// router.put('/:id/status', protect, updateWithdrawalStatus);
 
 module.exports = router;

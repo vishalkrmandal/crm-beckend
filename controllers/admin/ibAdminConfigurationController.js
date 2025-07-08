@@ -69,7 +69,7 @@ exports.getAllGroupsWithConfigurations = async (req, res) => {
 // Create new IB configuration
 exports.createIBConfiguration = async (req, res) => {
     try {
-        const { groupId, level, bonusPerLot } = req.body;
+        const { groupId, level, bonusPerLot, defaultTimeInSeconds } = req.body;
 
         // Validate group exists
         const groupExists = await Group.findById(groupId);
@@ -100,7 +100,8 @@ exports.createIBConfiguration = async (req, res) => {
         const newConfig = await IBConfiguration.create({
             groupId,
             level,
-            bonusPerLot
+            bonusPerLot,
+            defaultTimeInSeconds: defaultTimeInSeconds || 0
         });
 
         res.status(201).json({
@@ -120,12 +121,12 @@ exports.createIBConfiguration = async (req, res) => {
 exports.updateIBConfiguration = async (req, res) => {
     try {
         const { id } = req.params;
-        const { bonusPerLot } = req.body;
+        const { bonusPerLot, defaultTimeInSeconds } = req.body;
 
         // Make sure only bonus amount can be updated, not group or level
         const updatedConfig = await IBConfiguration.findByIdAndUpdate(
             id,
-            { bonusPerLot },
+            { bonusPerLot, ...(defaultTimeInSeconds !== undefined && { defaultTimeInSeconds }) },
             { new: true, runValidators: true }
         );
 
@@ -144,6 +145,33 @@ exports.updateIBConfiguration = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Could not update IB configuration',
+            error: error.message
+        });
+    }
+};
+
+// Add this new function
+exports.updateGroupDefaultTime = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { defaultTimeInSeconds } = req.body;
+
+        // Update all configurations for this group
+        const updatedConfigs = await IBConfiguration.updateMany(
+            { groupId },
+            { defaultTimeInSeconds },
+            { runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `Updated ${updatedConfigs.modifiedCount} configurations`,
+            data: updatedConfigs
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Could not update group default time',
             error: error.message
         });
     }
@@ -175,3 +203,4 @@ exports.deleteIBConfiguration = async (req, res) => {
         });
     }
 };
+

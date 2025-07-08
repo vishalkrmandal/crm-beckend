@@ -5,7 +5,8 @@ const {
     getAllGroupsWithConfigurations,
     createIBConfiguration,
     updateIBConfiguration,
-    deleteIBConfiguration
+    deleteIBConfiguration,
+    updateGroupDefaultTime
 } = require('../../controllers/admin/ibAdminConfigurationController');
 const { protect, authorize } = require('../../middlewares/auth');
 
@@ -27,5 +28,8 @@ router.route('/')
 router.route('/:id')
     .put(updateIBConfiguration)
     .delete(deleteIBConfiguration);
+
+// Add this route
+router.put('/group/:groupId/default-time', updateGroupDefaultTime);
 
 module.exports = router;
